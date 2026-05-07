@@ -79,7 +79,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>© 2025 Campus Guide & Parking System</div>
+        <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>© 2026 Campus Guide & Parking System</div>
       </div>
 
       {/* Right form panel */}
