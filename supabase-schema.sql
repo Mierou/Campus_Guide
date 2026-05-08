@@ -1,11 +1,11 @@
 -- Campus Guide & Parking System — Supabase Schema
--- Run this in your Supabase SQL editor
+-- Run this entire file in your Supabase SQL Editor
 
 -- Users
-create table public.users (
+create table if not exists public.users (
   id serial primary key,
   username text unique not null,
-  password text not null,  -- store hashed in production
+  password text not null,
   full_name text not null,
   role text not null default 'User' check (role in ('Admin', 'User')),
   created_at timestamptz default now()
@@ -14,10 +14,11 @@ create table public.users (
 -- Seed demo users
 insert into public.users (username, password, full_name, role) values
   ('admin',   'admin123',   'Admin User',     'Admin'),
-  ('student', 'student123', 'Juan dela Cruz', 'User');
+  ('student', 'student123', 'Juan dela Cruz', 'User')
+on conflict (username) do nothing;
 
 -- Parking Lots
-create table public.parking_lots (
+create table if not exists public.parking_lots (
   id serial primary key,
   lot_name text not null,
   departments text,
@@ -30,10 +31,11 @@ insert into public.parking_lots (lot_name, departments, hours, latitude, longitu
   ('Backgate Parking', 'General',      '6:00 AM – 10:00 PM', 10.29410, 123.88060),
   ('RTL Parking',      'CS, IT Dept.', '7:00 AM – 8:00 PM',  10.29460, 123.88040),
   ('South Lot',        'General',      '6:00 AM – 10:00 PM', 10.29390, 123.88010),
-  ('Espacio Parking',  'General',      '7:00 AM – 9:00 PM',  10.29545, 123.88055);
+  ('Espacio Parking',  'General',      '7:00 AM – 9:00 PM',  10.29545, 123.88055)
+on conflict do nothing;
 
 -- Parking Spots
-create table public.parking_spots (
+create table if not exists public.parking_spots (
   id serial primary key,
   lot_id integer references public.parking_lots(id) on delete cascade,
   spot_code text not null,
@@ -44,7 +46,7 @@ create table public.parking_spots (
 );
 
 -- Reservation History
-create table public.reservation_history (
+create table if not exists public.reservation_history (
   id serial primary key,
   spot_id integer references public.parking_spots(id) on delete cascade,
   user_id integer references public.users(id),
@@ -55,33 +57,18 @@ create table public.reservation_history (
   status text default 'Occupied'
 );
 
--- Buildings
-create table public.buildings (
-  id serial primary key,
-  name text not null,
-  abbreviation text,
-  departments text,
-  hours text,
-  image_file text,
-  latitude double precision,
-  longitude double precision,
-  filter_category text,
-  is_open boolean default true
-);
+-- =============================================
+-- IMPORTANT: Disable RLS so the app can read data
+-- (For a production app, set up proper RLS policies instead)
+-- =============================================
+alter table public.users              disable row level security;
+alter table public.parking_lots       disable row level security;
+alter table public.parking_spots      disable row level security;
+alter table public.reservation_history disable row level security;
 
--- Facilities
-create table public.facilities (
-  id serial primary key,
-  name text not null,
-  emoji text,
-  category text,
-  services text,
-  hours text,
-  image_file text,
-  latitude double precision,
-  longitude double precision,
-  is_open boolean default true
-);
-
--- Enable Row Level Security (optional, recommended for production)
--- alter table public.users enable row level security;
+-- Grant access to anon role (needed for Supabase anon key to work)
+grant select, insert, update, delete on public.users               to anon;
+grant select, insert, update, delete on public.parking_lots        to anon;
+grant select, insert, update, delete on public.parking_spots       to anon;
+grant select, insert, update, delete on public.reservation_history to anon;
+grant usage, select on all sequences in schema public to anon;

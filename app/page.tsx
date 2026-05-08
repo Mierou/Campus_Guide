@@ -2,13 +2,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/session'
+import { supabase } from '@/lib/supabase'
 import { GraduationCap, Eye, EyeOff, ArrowRight } from 'lucide-react'
-
-const DEMO_USERS = [
-  { id: 1, username: 'admin',   full_name: 'Admin User',     role: 'Admin' as const },
-  { id: 2, username: 'student', full_name: 'Juan dela Cruz', role: 'User'  as const },
-]
-const DEMO_PW: Record<string, string> = { admin: 'admin123', student: 'student123' }
 
 export default function LoginPage() {
   const router   = useRouter()
@@ -28,10 +23,25 @@ export default function LoginPage() {
     e.preventDefault(); setError('')
     if (!username || !password) { setError('Please fill in all fields.'); return }
     setLoading(true)
-    await new Promise(r => setTimeout(r, 350))
-    const user = DEMO_USERS.find(u => u.username === username && DEMO_PW[u.username] === password)
-    if (user) { setUser(user); router.push('/home') }
-    else setError('Incorrect username or password.')
+    try {
+      const { data, error: err } = await supabase
+        .from('users')
+        .select('id, username, full_name, role, password')
+        .eq('username', username)
+        .single()
+
+      if (err || !data) {
+        setError('Incorrect username or password.')
+      } else if (data.password !== password) {
+        setError('Incorrect username or password.')
+      } else {
+        const { password: _, ...safeUser } = data
+        setUser(safeUser as any)
+        router.push('/home')
+      }
+    } catch {
+      setError('Connection error. Please check your Supabase settings.')
+    }
     setLoading(false)
   }
 
@@ -41,8 +51,30 @@ export default function LoginPage() {
     if (newUser.length < 4) { setError('Username must be at least 4 characters.'); return }
     if (newPw.length < 6)   { setError('Password must be at least 6 characters.'); return }
     if (newPw !== confirmPw) { setError('Passwords do not match.'); return }
-    alert(`Account created! Log in as "${newUser}". (Connect Supabase for real persistence.)`)
-    setTab('login'); setUsername(newUser)
+    setLoading(true)
+    try {
+      // Check if username already taken
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', newUser)
+        .single()
+
+      if (existing) { setError('Username is already taken.'); setLoading(false); return }
+
+      const { error: err } = await supabase
+        .from('users')
+        .insert({ username: newUser, password: newPw, full_name: fullName, role: 'User' })
+
+      if (err) { setError('Could not create account. Try a different username.'); }
+      else {
+        alert(`Account created! You can now sign in as "${newUser}".`)
+        setTab('login'); setUsername(newUser)
+      }
+    } catch {
+      setError('Connection error. Please check your Supabase settings.')
+    }
+    setLoading(false)
   }
 
   return (
@@ -55,7 +87,6 @@ export default function LoginPage() {
           </div>
           <span style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>Campus Guide</span>
         </div>
-
         <div>
           <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Campus Navigation System</div>
           <h1 style={{ fontFamily: 'Instrument Serif, serif', fontSize: 42, color: 'white', lineHeight: 1.15, marginBottom: 20 }}>
@@ -65,27 +96,19 @@ export default function LoginPage() {
             Find buildings, check live parking availability, get walking directions, and explore campus facilities — all in one elegant interface.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              ['🗺️', 'Interactive satellite campus map'],
-              ['🚗', 'Real-time parking spot status'],
-              ['🧭', 'Walking directions between locations'],
-              ['📊', 'Admin analytics dashboard'],
-            ].map(([icon, text]) => (
+            {[['🗺️','Interactive satellite campus map'],['🚗','Real-time parking spot status'],['🧭','Walking directions between locations'],['📊','Admin analytics dashboard']].map(([icon, text]) => (
               <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'rgba(255,255,255,0.7)', fontSize: 13.5 }}>
-                <span style={{ fontSize: 16 }}>{icon}</span>
-                {text}
+                <span style={{ fontSize: 16 }}>{icon}</span>{text}
               </div>
             ))}
           </div>
         </div>
-
-        <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>© 2026 Campus Guide & Parking System</div>
+        <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>© 2025 Campus Guide & Parking System</div>
       </div>
 
       {/* Right form panel */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <div style={{ width: '100%', maxWidth: 380 }} className="fade-up">
-          {/* Mobile logo */}
           <div className="lg:hidden" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--maroon)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <GraduationCap size={18} color="white" />
@@ -93,7 +116,6 @@ export default function LoginPage() {
             <span style={{ color: 'var(--maroon)', fontWeight: 700, fontSize: 15 }}>Campus Guide</span>
           </div>
 
-          {/* Title */}
           <div style={{ marginBottom: 28 }}>
             <h2 style={{ fontFamily: 'Instrument Serif, serif', fontSize: 28, color: 'var(--dark)', marginBottom: 4 }}>
               {tab === 'login' ? 'Welcome back' : 'Create account'}
@@ -105,20 +127,19 @@ export default function LoginPage() {
 
           {/* Tabs */}
           <div style={{ display: 'flex', background: '#ede8e0', borderRadius: 12, padding: 4, marginBottom: 24 }}>
-            {(['login', 'signup'] as const).map(t => (
+            {(['login','signup'] as const).map(t => (
               <button key={t} onClick={() => { setTab(t); setError('') }} style={{
                 flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
                 fontSize: 13.5, fontWeight: 600, transition: 'all 0.18s',
-                background: tab === t ? 'white' : 'transparent',
-                color: tab === t ? 'var(--maroon)' : 'var(--muted)',
-                boxShadow: tab === t ? '0 1px 6px rgba(0,0,0,0.09)' : 'none',
+                background: tab===t ? 'white' : 'transparent',
+                color: tab===t ? 'var(--maroon)' : 'var(--muted)',
+                boxShadow: tab===t ? '0 1px 6px rgba(0,0,0,0.09)' : 'none',
               }}>
                 {t === 'login' ? 'Sign In' : 'Sign Up'}
               </button>
             ))}
           </div>
 
-          {/* Error */}
           {error && (
             <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, background: 'var(--red-pale)', color: 'var(--red)', fontSize: 13, border: '1px solid #f5c0bb', fontWeight: 500 }}>
               {error}
@@ -136,32 +157,29 @@ export default function LoginPage() {
                 <div style={{ position: 'relative' }}>
                   <input className="inp" type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" style={{ paddingRight: 40 }} autoComplete="current-password" />
                   <button type="button" onClick={() => setShowPw(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted2)' }}>
-                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                    {showPw ? <EyeOff size={15}/> : <Eye size={15}/>}
                   </button>
                 </div>
               </div>
               <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', marginTop: 4, padding: '11px 0', fontSize: 14, opacity: loading ? 0.7 : 1 }}>
-                {loading ? 'Signing in…' : <><span>Sign In</span><ArrowRight size={15} /></>}
+                {loading ? 'Signing in…' : <><span>Sign In</span><ArrowRight size={15}/></>}
               </button>
-              <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted2)', marginTop: 4, padding: '10px 14px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                Demo: <strong style={{ color: 'var(--text)' }}>admin / admin123</strong> &nbsp;·&nbsp; <strong style={{ color: 'var(--text)' }}>student / student123</strong>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
-                { label: 'FULL NAME',        val: fullName,  set: setFullName,  ph: 'Your full name',        type: 'text' },
-                { label: 'USERNAME',          val: newUser,   set: setNewUser,   ph: 'Min. 4 characters',     type: 'text' },
-                { label: 'PASSWORD',          val: newPw,     set: setNewPw,     ph: 'Min. 6 characters',     type: showPw ? 'text' : 'password' },
-                { label: 'CONFIRM PASSWORD',  val: confirmPw, set: setConfirmPw, ph: 'Repeat your password',  type: showPw ? 'text' : 'password' },
+                { label:'FULL NAME',       val:fullName,  set:setFullName,  ph:'Your full name',       type:'text' },
+                { label:'USERNAME',         val:newUser,   set:setNewUser,   ph:'Min. 4 characters',    type:'text' },
+                { label:'PASSWORD',         val:newPw,     set:setNewPw,     ph:'Min. 6 characters',    type:showPw?'text':'password' },
+                { label:'CONFIRM PASSWORD', val:confirmPw, set:setConfirmPw, ph:'Repeat your password', type:showPw?'text':'password' },
               ].map(({ label, val, set, ph, type }) => (
                 <div key={label}>
                   <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--muted)', marginBottom: 6, letterSpacing: '0.03em' }}>{label}</label>
                   <input className="inp" type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph} />
                 </div>
               ))}
-              <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 4, padding: '11px 0', fontSize: 14 }}>
-                Create Account <ArrowRight size={15} />
+              <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', marginTop: 4, padding: '11px 0', fontSize: 14, opacity: loading ? 0.7 : 1 }}>
+                {loading ? 'Creating account…' : <><span>Create Account</span><ArrowRight size={15}/></>}
               </button>
             </form>
           )}
