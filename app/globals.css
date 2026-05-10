@@ -153,3 +153,158 @@ body {
 }
 
 input, select, textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+/* =============================================
+   MOBILE RESPONSIVE
+   ============================================= */
+
+/* Bottom nav (mobile only) */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: var(--maroon-dark);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  z-index: 9999;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 4px;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex: 1;
+  text-decoration: none;
+}
+
+.bottom-nav-item.active {
+  color: white;
+  background: rgba(255,255,255,0.12);
+}
+
+/* Mobile sheet (slides up from bottom) */
+.mobile-sheet {
+  display: none;
+  position: fixed;
+  bottom: 60px; left: 0; right: 0;
+  background: white;
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.1);
+  z-index: 9998;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  /* Hide desktop sidebar */
+  .sidebar { display: none !important; }
+
+  /* Show bottom nav */
+  .bottom-nav { display: flex; }
+
+  /* Add bottom padding so content isn't behind bottom nav */
+  main { padding-bottom: 68px !important; }
+
+  /* Page header adjustments */
+  .page-header {
+    padding: 12px 16px !important;
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+
+  /* Stack two-column layouts */
+  .desktop-two-col {
+    flex-direction: column !important;
+  }
+
+  /* Full width panels */
+  .left-panel {
+    width: 100% !important;
+    max-height: 40vh;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .right-panel {
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border) !important;
+  }
+
+  /* Map heights on mobile */
+  .map-mobile { height: 45vw !important; min-height: 200px !important; }
+
+  /* Analytics grid: 2 cols on mobile */
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .charts-grid { grid-template-columns: 1fr !important; }
+
+  /* Parking spot grid: smaller buttons */
+  .spot-btn { width: 34px !important; height: 28px !important; font-size: 9px !important; }
+
+  /* Login: hide left panel */
+  .login-left { display: none !important; }
+
+  /* Floating card: full width on mobile */
+  .floating-card {
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    bottom: 16px !important;
+  }
+
+  /* Detail strip: stack on mobile */
+  .detail-strip {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* Search bar full width on mobile */
+  .search-inp { width: 100% !important; }
+
+  /* Pill filters scroll horizontally */
+  .pill-row {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .pill-row::-webkit-scrollbar { display: none; }
+
+  /* Route panel full width */
+  .route-panel { width: 100% !important; border-right: none !important; }
+
+  /* Hide right action panel on mobile (use bottom sheet instead) */
+  .spot-actions-panel { display: none !important; }
+
+  /* Parking stats: wrap */
+  .parking-stats { overflow-x: auto; }
+
+  /* Table: horizontal scroll */
+  .table-wrap { overflow-x: auto; }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .page-header h1 { font-size: 15px !important; }
+}
+
+/* Hide on mobile */
+@media (max-width: 768px) {
+  .hidden-mobile { display: none !important; }
+}
