@@ -11,18 +11,20 @@ const CampusMap = dynamic(() => import('@/components/CampusMap'), { ssr: false }
 
 type Lot  = { id: number; lot_name: string; departments: string; hours: string; latitude: number; longitude: number }
 type Spot = { id: number; lot_id: number; spot_code: string; row_num: number; col_num: number; status: 'Available' | 'Occupied' | 'Reserved'; reserved_label: string }
+type FlyTarget = { lat: number; lng: number; zoom?: number } | null
 
 export default function ParkingPage() {
   const { user } = useSession()
   const isAdmin = user?.role === 'Admin'
-  const [lots, setLots]               = useState<Lot[]>([])
-  const [selectedLot, setSelectedLot] = useState<Lot | null>(null)
-  const [spots, setSpots]             = useState<Spot[]>([])
-  const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null)
-  const [loadingLots, setLoadingLots]   = useState(true)
-  const [loadingSpots, setLoadingSpots] = useState(false)
-  const [lotCounts, setLotCounts]       = useState<Record<number, { avail: number; total: number }>>({})
+  const [lots, setLots]                   = useState<Lot[]>([])
+  const [selectedLot, setSelectedLot]     = useState<Lot | null>(null)
+  const [spots, setSpots]                 = useState<Spot[]>([])
+  const [selectedSpot, setSelectedSpot]   = useState<Spot | null>(null)
+  const [loadingLots, setLoadingLots]     = useState(true)
+  const [loadingSpots, setLoadingSpots]   = useState(false)
+  const [lotCounts, setLotCounts]         = useState<Record<number, { avail: number; total: number }>>({})
   const [showSpotSheet, setShowSpotSheet] = useState(false)
+  const [flyTo, setFlyTo]                 = useState<FlyTarget>(null)
 
   useEffect(() => {
     supabase.from('parking_lots').select('*').order('lot_name').then(async ({ data }) => {
@@ -38,6 +40,7 @@ export default function ParkingPage() {
 
   const selectLot = async (lot: Lot) => {
     setSelectedLot(lot); setSelectedSpot(null); setLoadingSpots(true); setShowSpotSheet(false)
+    setFlyTo({ lat: lot.latitude, lng: lot.longitude, zoom: 20 })
     const { data } = await supabase.from('parking_spots').select('*').eq('lot_id', lot.id).order('row_num').order('col_num')
     setSpots(data ?? []); setLoadingSpots(false)
   }
@@ -62,7 +65,7 @@ export default function ParkingPage() {
   const rows = useMemo(() => {
     const map: Record<number, Spot[]> = {}
     spots.forEach(s => { if (!map[s.row_num]) map[s.row_num] = []; map[s.row_num].push(s) })
-    return Object.entries(map).map(([r, ss]) => ({ row: Number(r), spots: ss.sort((a,b) => a.col_num - b.col_num) }))
+    return Object.entries(map).map(([r, ss]) => ({ row: Number(r), spots: ss.sort((a, b) => a.col_num - b.col_num) }))
   }, [spots])
 
   const pct = stats.total ? Math.round(stats.occ / stats.total * 100) : 0
@@ -84,17 +87,21 @@ export default function ParkingPage() {
         {spot.reserved_label && <div style={{ fontSize: 11.5, color: 'var(--amber)', marginTop: 5 }}>For: {spot.reserved_label}</div>}
       </div>
       {isAdmin && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          <button onClick={async () => { if (spot.status !== 'Available') return; const v = prompt('Vehicle type:') ?? ''; if (v) { await updateSpot(spot, 'Occupied'); if (user) await supabase.from('reservation_history').insert({ spot_id: spot.id, user_id: user.id, vehicle_type: v, time_start: new Date().getHours() + ':00', reservation_date: new Date().toISOString().split('T')[0], status: 'Occupied' }) } }}
-            disabled={spot.status !== 'Available'} style={{ padding: '9px 0', borderRadius: 9, border: '1.5px solid #f0b3ab', background: 'var(--red-pale)', color: 'var(--red)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: spot.status !== 'Available' ? 0.4 : 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={async () => {
+            if (spot.status !== 'Available') return
+            const v = prompt('Vehicle type (Car, Motorcycle, SUV/Van, Truck, Bicycle):') ?? ''
+            if (v) { await updateSpot(spot, 'Occupied'); if (user) await supabase.from('reservation_history').insert({ spot_id: spot.id, user_id: user.id, vehicle_type: v, time_start: new Date().getHours() + ':00', reservation_date: new Date().toISOString().split('T')[0], status: 'Occupied' }) }
+          }} disabled={spot.status !== 'Available'} style={{ padding: '10px 0', borderRadius: 10, border: '1.5px solid #f0b3ab', background: 'var(--red-pale)', color: 'var(--red)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', opacity: spot.status !== 'Available' ? 0.4 : 1 }}>
             Mark Occupied
           </button>
-          <button onClick={() => updateSpot(spot, 'Available')} disabled={spot.status === 'Available'}
-            style={{ padding: '9px 0', borderRadius: 9, border: '1.5px solid #a8d5b8', background: 'var(--green-pale)', color: 'var(--green)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: spot.status === 'Available' ? 0.4 : 1 }}>
+          <button onClick={() => updateSpot(spot, 'Available')} disabled={spot.status === 'Available'} style={{ padding: '10px 0', borderRadius: 10, border: '1.5px solid #a8d5b8', background: 'var(--green-pale)', color: 'var(--green)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', opacity: spot.status === 'Available' ? 0.4 : 1 }}>
             Mark Available
           </button>
-          <button onClick={async () => { if (spot.status === 'Reserved') return; const l = prompt('Reserve for:') ?? ''; if (l) updateSpot(spot, 'Reserved', l) }}
-            disabled={spot.status === 'Reserved'} style={{ padding: '9px 0', borderRadius: 9, border: '1.5px solid #f0d090', background: 'var(--amber-pale)', color: 'var(--amber)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: spot.status === 'Reserved' ? 0.4 : 1 }}>
+          <button onClick={async () => {
+            if (spot.status === 'Reserved') return
+            const l = prompt('Reserve for (name):') ?? ''; if (l) updateSpot(spot, 'Reserved', l)
+          }} disabled={spot.status === 'Reserved'} style={{ padding: '10px 0', borderRadius: 10, border: '1.5px solid #f0d090', background: 'var(--amber-pale)', color: 'var(--amber)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', opacity: spot.status === 'Reserved' ? 0.4 : 1 }}>
             Mark Reserved
           </button>
         </div>
@@ -103,83 +110,104 @@ export default function ParkingPage() {
   )
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar />
-      <BottomNav />
-      <main style={{ flex: 1, display: 'flex', overflow: 'hidden', background: 'var(--cream)' }}>
+    <>
+      <style>{`
+        .parking-layout { display: flex; min-height: 100vh; }
+        .parking-main   { flex: 1; display: flex; overflow: hidden; background: var(--cream); }
+        .lot-list       { width: 250px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+        .center-col     { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+        .spot-panel     { width: 230px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+        .map-zone       { padding: 12px 12px 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+        .grid-zone      { flex: 1; overflow-y: auto; padding: 16px; }
 
-        {/* Lot list */}
-        <div className="left-panel" style={{ width: 250, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '16px 16px 10px', borderBottom: '1px solid var(--border)' }}>
-            <h1 style={{ fontSize: 17, fontWeight: 700 }}>Parking</h1>
-            <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>Select a lot</p>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loadingLots && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13.5 }}>Loading…</div>}
-            {lots.map(lot => {
-              const counts = lotCounts[lot.id]
-              const active = selectedLot?.id === lot.id
-              return (
-                <button key={lot.id} onClick={() => selectLot(lot)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', background: active ? 'var(--maroon-pale)' : 'transparent', transition: 'background 0.15s' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: active ? 'var(--maroon)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Car size={16} color={active ? 'white' : 'var(--muted)'} />
+        @media (max-width: 768px) {
+          .parking-main { flex-direction: column; overflow-y: auto; }
+          .lot-list     { width: 100%; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }
+          .center-col   { flex: none; }
+          .spot-panel   { display: none !important; }
+          .map-zone     { padding: 10px; }
+        }
+      `}</style>
+
+      <div className="parking-layout">
+        <Sidebar />
+        <BottomNav />
+        <main className="parking-main">
+
+          {/* Lot list */}
+          <div className="lot-list">
+            <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--border)' }}>
+              <h1 style={{ fontSize: 16, fontWeight: 700 }}>Parking</h1>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Select a lot</p>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {loadingLots && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13.5 }}>Loading…</div>}
+              {lots.map(lot => {
+                const counts = lotCounts[lot.id]
+                const active = selectedLot?.id === lot.id
+                return (
+                  <button key={lot.id} onClick={() => selectLot(lot)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', background: active ? 'var(--maroon-pale)' : 'transparent', transition: 'background 0.15s' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: active ? 'var(--maroon)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Car size={16} color={active ? 'white' : 'var(--muted)'} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lot.lot_name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 1 }}>{counts ? `${counts.avail}/${counts.total} open` : '…'}</div>
+                    </div>
+                    <ChevronRight size={13} color="var(--muted2)" />
+                  </button>
+                )
+              })}
+            </div>
+            {/* Legend */}
+            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {[['spot-available','Available'],['spot-occupied','Occupied'],['spot-reserved','Reserved']].map(([cls, lbl]) => (
+                  <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div className={cls} style={{ width: 24, height: 18, borderRadius: 5, fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>A1</div>
+                    <span style={{ fontSize: 11.5 }}>{lbl}</span>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lot.lot_name}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 1 }}>{counts ? `${counts.avail}/${counts.total} open` : '…'}</div>
-                  </div>
-                  <ChevronRight size={13} color="var(--muted2)" />
-                </button>
-              )
-            })}
-          </div>
-          {/* Legend - desktop */}
-          <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }} id="lot-legend">
-            <style>{`@media(max-width:768px){#lot-legend{display:none!important}}`}</style>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--muted)', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Legend</div>
-            {[['spot-available','Available'],['spot-occupied','Occupied'],['spot-reserved','Reserved']].map(([cls, lbl]) => (
-              <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
-                <div className={cls} style={{ width: 26, height: 20, borderRadius: 5, fontSize: 8.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>A1</div>
-                <span style={{ fontSize: 12 }}>{lbl}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Center: map + grid */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Map - smaller on mobile */}
-          <div style={{ padding: '12px 12px 0', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-            <CampusMap markers={markers} height="160px" />
-          </div>
-
-          {/* Stats bar */}
-          {selectedLot && (
-            <div className="parking-stats" style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface)', overflowX: 'auto' }}>
-              {[
-                { label: 'Available', val: stats.avail, color: 'var(--green)', bg: 'var(--green-pale)' },
-                { label: 'Occupied',  val: stats.occ,   color: 'var(--red)',   bg: 'var(--red-pale)' },
-                { label: 'Reserved',  val: stats.res,   color: 'var(--amber)', bg: 'var(--amber-pale)' },
-                { label: 'Total',     val: stats.total, color: 'var(--dark)',  bg: 'var(--surface2)' },
-              ].map((s, i) => (
-                <div key={s.label} style={{ flex: '1 0 70px', padding: '8px 12px', borderRight: i < 3 ? '1px solid var(--border)' : 'none', background: s.bg }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</div>
-                  <div style={{ fontSize: 10.5, color: s.color, fontWeight: 600, opacity: 0.75 }}>{s.label}</div>
-                </div>
-              ))}
-              <div style={{ flex: '1 0 80px', padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <div style={{ height: 6, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--amber)' : 'var(--green)', borderRadius: 99 }} />
-                </div>
-                <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 3 }}>{pct}%</div>
+                ))}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Spot grid */}
-          {selectedLot ? (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-              {loadingSpots ? (
+          {/* Center: map + stats + grid */}
+          <div className="center-col">
+            <div className="map-zone">
+              <CampusMap markers={markers} height="170px" flyTo={flyTo} />
+            </div>
+
+            {selectedLot && (
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface)', overflowX: 'auto' }}>
+                {[
+                  { label: 'Available', val: stats.avail, color: 'var(--green)', bg: 'var(--green-pale)' },
+                  { label: 'Occupied',  val: stats.occ,   color: 'var(--red)',   bg: 'var(--red-pale)' },
+                  { label: 'Reserved',  val: stats.res,   color: 'var(--amber)', bg: 'var(--amber-pale)' },
+                  { label: 'Total',     val: stats.total, color: 'var(--dark)',  bg: 'var(--surface2)' },
+                ].map((s, i) => (
+                  <div key={s.label} style={{ flex: '1 0 60px', padding: '8px 12px', borderRight: i < 3 ? '1px solid var(--border)' : 'none', background: s.bg }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: 10.5, color: s.color, fontWeight: 600, opacity: 0.8 }}>{s.label}</div>
+                  </div>
+                ))}
+                <div style={{ flex: '1 0 80px', padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <div style={{ height: 6, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--amber)' : 'var(--green)', borderRadius: 99, transition: 'width 0.5s' }} />
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 3 }}>{pct}% full</div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid-zone">
+              {!selectedLot ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 160, color: 'var(--muted)', textAlign: 'center' }}>
+                  <Car size={28} color="var(--muted2)" style={{ marginBottom: 10 }} />
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>Select a parking lot</div>
+                  <div style={{ fontSize: 13 }}>Tap a lot from the list or a map marker</div>
+                </div>
+              ) : loadingSpots ? (
                 <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13.5, paddingTop: 30 }}>Loading spots…</div>
               ) : (
                 <>
@@ -188,17 +216,21 @@ export default function ParkingPage() {
                     {rows.map(({ row, spots: rowSpots }, ri) => (
                       <div key={row}>
                         {ri === Math.floor(rows.length / 2) && (
-                          <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--muted)', padding: '4px 0', margin: '3px 0', background: 'var(--surface2)', borderRadius: 6 }}>── DRIVE AISLE ──</div>
+                          <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--muted)', padding: '4px 0', margin: '3px 0', background: 'var(--surface2)', borderRadius: 6, letterSpacing: '0.08em' }}>── DRIVE AISLE ──</div>
                         )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ width: 16, fontSize: 10, fontWeight: 700, color: 'var(--muted2)', textAlign: 'center', flexShrink: 0 }}>{String.fromCharCode(65 + row)}</span>
-                          {rowSpots.map(spot => (
-                            <button key={spot.id} onClick={() => { setSelectedSpot(s => s?.id === spot.id ? null : spot); setShowSpotSheet(true) }}
-                              className={`spot-btn ${spot.status === 'Available' ? 'spot-available' : spot.status === 'Occupied' ? 'spot-occupied' : 'spot-reserved'} ${selectedSpot?.id === spot.id ? 'spot-selected' : ''}`}
-                              style={{ width: 42, height: 34, borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}>
-                              {spot.spot_code.replace(/[A-Za-z]/g, '')}
-                            </button>
-                          ))}
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {rowSpots.map(spot => (
+                              <button key={spot.id}
+                                onClick={() => { setSelectedSpot(s => s?.id === spot.id ? null : spot); setShowSpotSheet(true) }}
+                                className={`${spot.status === 'Available' ? 'spot-available' : spot.status === 'Occupied' ? 'spot-occupied' : 'spot-reserved'} ${selectedSpot?.id === spot.id ? 'spot-selected' : ''}`}
+                                style={{ width: 40, height: 32, borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
+                                title={spot.reserved_label ? `Reserved: ${spot.reserved_label}` : spot.spot_code}>
+                                {spot.spot_code.replace(/[A-Za-z]/g, '')}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -206,45 +238,39 @@ export default function ParkingPage() {
                 </>
               )}
             </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
-              <Car size={28} color="var(--muted2)" style={{ marginBottom: 10 }} />
-              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>Select a parking lot</div>
-              <div style={{ fontSize: 12.5 }}>Tap a lot from the list</div>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop right panel */}
-        <div className="spot-actions-panel" style={{ width: 230, background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-          <div style={{ padding: '16px 14px 10px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isAdmin ? 'Spot Actions' : 'Spot Details'}</div>
           </div>
-          {selectedSpot ? (
-            <div className="fade-up" style={{ flex: 1, padding: 14, overflowY: 'auto' }}>
+
+          {/* Desktop right panel */}
+          <div className="spot-panel">
+            <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isAdmin ? 'Spot Actions' : 'Spot Details'}</div>
+            </div>
+            {selectedSpot ? (
+              <div className="fade-up" style={{ flex: 1, padding: 14, overflowY: 'auto' }}>
+                <SpotActions spot={selectedSpot} />
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center' }}>
+                <Car size={18} color="var(--muted2)" style={{ marginBottom: 8 }} />
+                <div style={{ fontSize: 12.5, fontWeight: 600 }}>Select a spot</div>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>Click a spot in the grid</div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile bottom sheet for spot actions */}
+          {selectedSpot && showSpotSheet && (
+            <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: 'white', borderRadius: '18px 18px 0 0', borderTop: '1px solid var(--border)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)', padding: '16px', zIndex: 9997, maxHeight: '55vh', overflowY: 'auto', display: 'none' }} id="spot-sheet">
+              <style>{`@media(max-width:768px){#spot-sheet{display:block!important}}`}</style>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Spot Details</div>
+                <button onClick={() => setShowSpotSheet(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}><X size={16} /></button>
+              </div>
               <SpotActions spot={selectedSpot} />
             </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center' }}>
-              <Car size={18} color="var(--muted2)" style={{ marginBottom: 8 }} />
-              <div style={{ fontSize: 12.5, fontWeight: 600 }}>Select a spot</div>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>Click a spot in the grid</div>
-            </div>
           )}
-        </div>
-
-        {/* Mobile bottom sheet for spot */}
-        {selectedSpot && showSpotSheet && (
-          <div style={{ display: 'none', position: 'fixed', bottom: 60, left: 0, right: 0, background: 'white', borderRadius: '18px 18px 0 0', border: '1px solid var(--border)', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)', padding: '16px', zIndex: 9997, maxHeight: '55vh', overflowY: 'auto' }} id="spot-sheet">
-            <style>{`@media(max-width:768px){#spot-sheet{display:block!important}}`}</style>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Spot Details</div>
-              <button onClick={() => setShowSpotSheet(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}><X size={16} /></button>
-            </div>
-            <SpotActions spot={selectedSpot} />
-          </div>
-        )}
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   )
 }

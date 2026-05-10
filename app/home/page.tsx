@@ -17,6 +17,7 @@ export default function HomePage() {
   const [selected, setSelected] = useState<Location | null>(null)
   const [time, setTime] = useState('')
   const [loading, setLoading] = useState(true)
+  const [flyTo, setFlyTo] = useState<{lat:number;lng:number;zoom?:number}|null>(null)
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }))
@@ -41,7 +42,7 @@ export default function HomePage() {
   const markers = locations.map(loc => ({
     lat: loc.lat, lng: loc.lng, label: loc.name,
     color: selected?.name === loc.name ? '#D4A017' : (loc.is_open ? '#1a7a40' : '#c0392b'),
-    onClick: () => setSelected(loc),
+    onClick: () => { setSelected(loc); setFlyTo({ lat: loc.lat, lng: loc.lng, zoom: 20 }) },
   }))
 
   const openCount  = locations.filter(l => l.is_open).length
@@ -78,7 +79,7 @@ export default function HomePage() {
         <div style={{ flex: 1, position: 'relative', padding: 12, overflow: 'hidden' }}>
           {loading
             ? <div style={{ height: 'calc(100vh - 90px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading campus data…</div>
-            : <CampusMap markers={markers} height="calc(100vh - 90px)" />
+            : <CampusMap markers={markers} height="calc(100vh - 90px)" flyTo={flyTo} />
           }
 
           {selected && (

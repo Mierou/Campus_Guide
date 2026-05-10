@@ -21,6 +21,7 @@ export default function BuildingsPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Building | null>(null)
   const [loading, setLoading] = useState(true)
+  const [flyTo, setFlyTo] = useState<{lat:number;lng:number;zoom?:number}|null>(null)
   const [showMap, setShowMap] = useState(false)
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function BuildingsPage() {
   const markers = filtered.map(b => ({
     lat: b.latitude, lng: b.longitude, label: b.name,
     color: selected?.id === b.id ? '#D4A017' : (b.is_open ? '#1a7a40' : '#c0392b'),
-    onClick: () => setSelected(b),
+    onClick: () => { setSelected(b); setFlyTo({ lat: b.latitude, lng: b.longitude, zoom: 20 }) },
   }))
 
   const col = (abbr: string) => ABBR_COLORS[abbr] ?? 'var(--maroon)'
@@ -64,7 +65,7 @@ export default function BuildingsPage() {
         {/* Mobile map toggle area */}
         {showMap && (
           <div style={{ padding: '0 12px 12px' }}>
-            <CampusMap markers={markers} height="220px" />
+            <CampusMap markers={markers} height="220px" flyTo={flyTo} />
           </div>
         )}
 
@@ -79,7 +80,7 @@ export default function BuildingsPage() {
               {filtered.map(b => {
                 const active = selected?.id === b.id
                 return (
-                  <button key={b.id} onClick={() => setSelected(b)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', background: active ? 'var(--maroon-pale)' : 'transparent', transition: 'background 0.15s' }}>
+                  <button key={b.id} onClick={() => { setSelected(b); setFlyTo({ lat: b.latitude, lng: b.longitude, zoom: 20 }) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', background: active ? 'var(--maroon-pale)' : 'transparent', transition: 'background 0.15s' }}>
                     <div style={{ width: 40, height: 38, borderRadius: 10, background: col(b.abbreviation) + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 800, color: col(b.abbreviation), flexShrink: 0 }}>{b.abbreviation}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</div>
@@ -95,7 +96,7 @@ export default function BuildingsPage() {
 
           {/* Map + detail - desktop only */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} className="hidden-mobile">
-            <div style={{ flex: 1, padding: 16 }}><CampusMap markers={markers} height="100%" /></div>
+            <div style={{ flex: 1, padding: 16 }}><CampusMap markers={markers} height="100%" flyTo={flyTo} /></div>
             {selected && (
               <div className="detail-strip fade-in" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 44, height: 40, borderRadius: 10, background: col(selected.abbreviation) + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: col(selected.abbreviation), flexShrink: 0 }}>{selected.abbreviation}</div>

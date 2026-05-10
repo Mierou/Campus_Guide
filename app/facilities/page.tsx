@@ -18,6 +18,7 @@ export default function FacilitiesPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Facility | null>(null)
   const [loading, setLoading] = useState(true)
+  const [flyTo, setFlyTo] = useState<{lat:number;lng:number;zoom?:number}|null>(null)
   const [showMap, setShowMap] = useState(false)
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function FacilitiesPage() {
   const markers = filtered.map(f => ({
     lat: f.latitude, lng: f.longitude, label: f.name,
     color: selected?.id === f.id ? '#D4A017' : (f.is_open ? '#1a7a40' : '#c0392b'),
-    onClick: () => setSelected(f),
+    onClick: () => { setSelected(f); setFlyTo({ lat: f.latitude, lng: f.longitude, zoom: 20 }) },
   }))
 
   return (
@@ -57,7 +58,7 @@ export default function FacilitiesPage() {
 
         {showMap && (
           <div style={{ padding: '0 12px 12px' }}>
-            <CampusMap markers={markers} height="220px" />
+            <CampusMap markers={markers} height="220px" flyTo={flyTo} />
           </div>
         )}
 
@@ -71,7 +72,7 @@ export default function FacilitiesPage() {
               {filtered.map(f => {
                 const active = selected?.id === f.id
                 return (
-                  <button key={f.id} onClick={() => setSelected(f)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', background: active ? 'var(--maroon-pale)' : 'transparent', transition: 'background 0.15s' }}>
+                  <button key={f.id} onClick={() => { setSelected(f); setFlyTo({ lat: f.latitude, lng: f.longitude, zoom: 20 }) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: '1px solid var(--border)', background: active ? 'var(--maroon-pale)' : 'transparent', transition: 'background 0.15s' }}>
                     <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{f.emoji}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600 }}>{f.name}</div>
@@ -85,7 +86,7 @@ export default function FacilitiesPage() {
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} className="hidden-mobile">
-            <div style={{ flex: 1, padding: 16 }}><CampusMap markers={markers} height="100%" /></div>
+            <div style={{ flex: 1, padding: 16 }}><CampusMap markers={markers} height="100%" flyTo={flyTo} /></div>
             {selected && (
               <div className="detail-strip fade-in" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ fontSize: 34, lineHeight: 1, flexShrink: 0 }}>{selected.emoji}</div>
