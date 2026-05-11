@@ -43,34 +43,27 @@ export default function BuildingsPage() {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
-
-  const normalizeArray = (value: any): string[] => {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map(v => v.trim())
-      .filter(Boolean)
-  }
-  return []
-}
-  
   
   const load = async () => {
-  const { data } = await supabase
-    .from('buildings')
-    .select('*')
-    .order('name')
+  try {
+    setLoading(true)
 
-  const safeData = (data ?? []).map(b => ({
-    ...b,
-    departments: normalizeArray(b.departments),
-    latitude: Number(b.latitude) || 0,
-    longitude: Number(b.longitude) || 0,
-  }))
+    const { data, error } = await supabase
+      .from("buildings")
+      .select("*")
+      .order("name")
 
-  setBuildings(safeData)
-  setLoading(false)
+    if (error) {
+      console.error(error)
+      return
+    }
+
+    setBuildings(data || [])
+  } catch (err) {
+    console.error("Buildings load error:", err)
+  } finally {
+    setLoading(false)
+  }
 }
 
   const openAdd  = () => { setForm(EMPTY); setDeptInput(''); setModal('add') }
@@ -109,13 +102,16 @@ export default function BuildingsPage() {
     )
   }
   
-  const selectBuilding = (b: Building) => {
+ const selectBuilding = (b: Building) => {
   setSelected(b)
 
-  if (isValidCoordinate(b.latitude, b.longitude)) {
+  if (
+    typeof b.latitude === "number" &&
+    typeof b.longitude === "number"
+  ) {
     setFlyTo({
-      lat: Number(b.latitude),
-      lng: Number(b.longitude),
+      lat: b.latitude,
+      lng: b.longitude,
       zoom: 20,
     })
   }
