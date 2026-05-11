@@ -79,9 +79,27 @@ export default function ParkingPage() {
       const { data } = await supabase.from('parking_lots').insert(payload).select().single()
       if (data) { await generateSpots(data.id, payload.rows, payload.cols); await loadLots() }
     } else if (lotModal==='edit' && selectedLot) {
+      const oldRows = selectedLot.rows ?? 3
+      const oldCols = selectedLot.cols ?? 8
+      const newRows = payload.rows
+      const newCols = payload.cols
       await supabase.from('parking_lots').update(payload).eq('id', selectedLot.id)
+      // If grid size changed, offer to regenerate spots
+      if ((newRows !== oldRows || newCols !== oldCols)) {
+        const confirmed = confirm(
+          `Grid size changed from ${oldRows}×${oldCols} to ${newRows}×${newCols}.\n\nDo you want to regenerate all spots? (This will delete existing spots and create new ones.)\n\nClick OK to regenerate, Cancel to keep existing spots.`
+        )
+        if (confirmed) {
+          await supabase.from('parking_spots').delete().eq('lot_id', selectedLot.id)
+          await generateSpots(selectedLot.id, newRows, newCols)
+          // Reload spots if this lot is currently selected
+          const { data: newSpots } = await supabase.from('parking_spots').select('*').eq('lot_id', selectedLot.id).order('row_num').order('col_num')
+          setSpots(newSpots ?? [])
+        }
+      }
       setLots(p=>p.map(l=>l.id===selectedLot.id?{...l,...payload}:l))
       setSelectedLot(prev=>prev?{...prev,...payload}:prev)
+      await loadLots()
     }
     setSaving(false); setLotModal(null)
   }
@@ -372,13 +390,15 @@ export default function ParkingPage() {
             <Field label="Latitude"><TextInput type="number" value={lotForm.latitude} onChange={v=>setLotForm(p=>({...p,latitude:v}))} placeholder="10.2945"/></Field>
             <Field label="Longitude"><TextInput type="number" value={lotForm.longitude} onChange={v=>setLotForm(p=>({...p,longitude:v}))} placeholder="123.8811"/></Field>
           </div>
-          {lotModal==='add' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Rows"><TextInput type="number" value={lotForm.rows} onChange={v=>setLotForm(p=>({...p,rows:v}))} placeholder="3"/></Field>
-              <Field label="Columns"><TextInput type="number" value={lotForm.cols} onChange={v=>setLotForm(p=>({...p,cols:v}))} placeholder="8"/></Field>
-            </div>
-          )}
-          {lotModal==='add' && <div style={{ fontSize:12.5, color:'var(--muted)', padding:'8px 12px', borderRadius:9, background:'var(--surface2)', border:'1px solid var(--border)' }}>Spots will be auto-generated from the rows × columns grid.</div>}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <Field label="Rows"><TextInput type="number" value={lotForm.rows} onChange={v=>setLotForm(p=>({...p,rows:v}))} placeholder="3"/></Field>
+            <Field label="Columns"><TextInput type="number" value={lotForm.cols} onChange={v=>setLotForm(p=>({...p,cols:v}))} placeholder="8"/></Field>
+          </div>
+          <div style={{ fontSize:12.5, color:'var(--muted)', padding:'8px 12px', borderRadius:9, background:'var(--surface2)', border:'1px solid var(--border)' }}>
+            {lotModal==='add'
+              ? 'Spots will be auto-generated from the rows × columns grid.'
+              : 'Changing rows/cols will prompt you to regenerate spots. Existing spot statuses will be reset.'}
+          </div>
         </AdminModal>
       )}
 
