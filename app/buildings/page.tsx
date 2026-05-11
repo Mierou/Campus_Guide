@@ -44,11 +44,34 @@ export default function BuildingsPage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const load = async () => {
-    const { data } = await supabase.from('buildings').select('*').order('name')
-    setBuildings(data ?? []); setLoading(false)
+  const normalizeArray = (value: any): string[] => {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean)
   }
-  useEffect(() => { load() }, [])
+  return []
+}
+  
+  
+  const load = async () => {
+  const { data } = await supabase
+    .from('buildings')
+    .select('*')
+    .order('name')
+
+  const safeData = (data ?? []).map(b => ({
+    ...b,
+    departments: normalizeArray(b.departments),
+    latitude: Number(b.latitude) || 0,
+    longitude: Number(b.longitude) || 0,
+  }))
+
+  setBuildings(safeData)
+  setLoading(false)
+}
 
   const openAdd  = () => { setForm(EMPTY); setDeptInput(''); setModal('add') }
   const openEdit = (b: Building) => {
