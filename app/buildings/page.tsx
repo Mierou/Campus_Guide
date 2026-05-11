@@ -99,26 +99,7 @@ export default function BuildingsPage() {
 
   return (
     <>
-      <style>{`
-        .bldg-wrap  { display:flex; min-height:100vh; }
-        .bldg-main  { flex:1; display:flex; flex-direction:column; overflow:hidden; background:var(--cream); }
-        .bldg-body  { display:flex; flex:1; overflow:hidden; }
-        .bldg-list  { width:288px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
-        .bldg-map   { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-        .bldg-mobile-map { display:none; padding:0 12px 12px; }
-        .show-map-btn { display:none; }
-        .filter-row { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--border); overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-        .filter-row::-webkit-scrollbar { display:none; }
-        @media(max-width:768px) {
-          .bldg-list  { width:100%; max-height:42vh; border-right:none; border-bottom:1px solid var(--border); }
-          .bldg-map   { display:none !important; }
-          .bldg-mobile-map { display:block; }
-          .show-map-btn { display:flex !important; }
-          .bldg-body  { flex-direction:column; overflow-y:auto; }
-        }
-      `}</style>
-
-      <div className="bldg-wrap">
+    <div className="bldg-wrap">
         <Sidebar />
         <BottomNav />
         <main className="bldg-main">

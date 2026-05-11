@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/session'
 import { supabase } from '@/lib/supabase'
@@ -12,12 +12,20 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [newUser, setNewUser] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
@@ -59,17 +67,6 @@ export default function LoginPage() {
 
   return (
     <>
-      <style>{`
-        .login-wrap { min-height: 100vh; display: flex; background: var(--cream); }
-        .login-left { width: 420px; flex-shrink: 0; background: var(--maroon-dark); display: flex; flex-direction: column; justify-content: space-between; padding: 48px 44px; }
-        .login-right { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 24px; overflow-y: auto; }
-        .login-form-box { width: 100%; max-width: 380px; }
-        @media (max-width: 768px) {
-          .login-left { display: none !important; }
-          .login-right { padding: 24px 20px; align-items: flex-start; padding-top: 48px; }
-          .login-form-box { max-width: 100%; }
-        }
-      `}</style>
 
       <div className="login-wrap">
         {/* Left panel — desktop only */}
@@ -106,8 +103,7 @@ export default function LoginPage() {
         <div className="login-right">
           <div className="login-form-box fade-up">
             {/* Mobile logo */}
-            <div style={{ display: 'none', alignItems: 'center', gap: 10, marginBottom: 32 }} id="mobile-logo">
-              <style>{`@media(max-width:768px){#mobile-logo{display:flex!important}}`}</style>
+            {isMobile && <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
               <div style={{ width: 38, height: 38, borderRadius: 11, background: 'var(--maroon)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <GraduationCap size={20} color="white" />
               </div>
@@ -115,7 +111,7 @@ export default function LoginPage() {
                 <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--maroon)' }}>Campus Guide</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>Navigation & Parking System</div>
               </div>
-            </div>
+            </div>}
 
             {/* Heading */}
             <div style={{ marginBottom: 24 }}>

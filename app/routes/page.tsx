@@ -35,6 +35,7 @@ function RoutesInner() {
   const [info, setInfo]           = useState<{dist:number;sec:number}|null>(null)
   const [noRoute, setNoRoute]     = useState(false)
   const [showMap, setShowMap]     = useState(false)
+  const [isMobile, setIsMobile]   = useState(false)
 
   const [modal, setModal]         = useState<'add'|'edit'|'delete'|null>(null)
   const [editTarget, setEditTarget] = useState<Route|null>(null)
@@ -59,6 +60,13 @@ function RoutesInner() {
   }
 
   useEffect(() => { loadLocations(); loadRoutes() }, [])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const go = () => {
     const route = routes.find(r => r.from_location===from && r.to_location===to)
@@ -182,16 +190,13 @@ function RoutesInner() {
                   </div>
 
                   {/* Mobile map toggle */}
-                  <button onClick={()=>setShowMap(v=>!v)} className="btn-ghost" style={{ justifyContent:'center', fontSize:12.5, display:'none' }} id="map-toggle-r">
-                    <style>{`@media(max-width:768px){#map-toggle-r{display:flex!important}}`}</style>
-                    {showMap ? <><ChevronUp size={13}/> Hide Map</> : <><ChevronDown size={13}/> Show Map</>}
-                  </button>
-
-                  {showMap && (
-                    <div id="mobile-map-r" style={{ display:'none' }}>
-                      <style>{`@media(max-width:768px){#mobile-map-r{display:block!important}}`}</style>
-                      <CampusMap markers={markers} route={activeRoute} height="220px" />
-                    </div>
+                  {isMobile && (
+                    <button onClick={()=>setShowMap(v=>!v)} className="btn-ghost" style={{ justifyContent:'center', fontSize:12.5 }}>
+                      {showMap ? <><ChevronUp size={13}/> Hide Map</> : <><ChevronDown size={13}/> Show Map</>}
+                    </button>
+                  )}
+                  {showMap && isMobile && (
+                    <CampusMap markers={markers} route={activeRoute} height="220px" />
                   )}
 
                   {/* Result */}
@@ -272,10 +277,11 @@ function RoutesInner() {
           </div>
 
           {/* Desktop map */}
-          <div style={{ flex:1, padding:16 }} id="desktop-map-r">
-            <style>{`@media(max-width:768px){#desktop-map-r{display:none!important}}`}</style>
-            <CampusMap markers={markers} route={activeRoute} height="calc(100vh - 32px)" />
-          </div>
+          {!isMobile && (
+            <div style={{ flex:1, padding:16 }}>
+              <CampusMap markers={markers} route={activeRoute} height="calc(100vh - 32px)" />
+            </div>
+          )}
         </main>
       </div>
 

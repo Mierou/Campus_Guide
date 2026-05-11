@@ -308,3 +308,49 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
 @media (max-width: 768px) {
   .hidden-mobile { display: none !important; }
 }
+
+/* ── Buildings / Facilities layout ───────────────────── */
+.bldg-wrap, .fac-wrap { display:flex; min-height:100vh; }
+.bldg-main, .fac-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:var(--cream); }
+.bldg-body, .fac-body { display:flex; flex:1; overflow:hidden; }
+.bldg-list, .fac-list { width:288px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.bldg-map,  .fac-map  { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.bldg-mobile-map, .fac-mobile-map { display:none; padding:0 12px 12px; }
+.bldg-filter-row, .fac-filter-row { display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid var(--border); overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.bldg-filter-row::-webkit-scrollbar, .fac-filter-row::-webkit-scrollbar { display:none; }
+
+@media (max-width: 768px) {
+  .bldg-list, .fac-list { width:100%; max-height:42vh; border-right:none; border-bottom:1px solid var(--border); }
+  .bldg-map,  .fac-map  { display:none !important; }
+  .bldg-mobile-map, .fac-mobile-map { display:block; }
+  .bldg-body, .fac-body { flex-direction:column; overflow-y:auto; }
+}
+
+/* ── Parking layout ───────────────────────────────────── */
+.parking-layout { display:flex; min-height:100vh; }
+.parking-main   { flex:1; display:flex; overflow:hidden; background:var(--cream); }
+.lot-list       { width:260px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.center-col     { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.spot-panel     { width:240px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.map-zone       { padding:12px 12px 0; border-bottom:1px solid var(--border); background:var(--surface); }
+.grid-zone      { flex:1; overflow-y:auto; padding:16px; }
+
+@media (max-width: 768px) {
+  .parking-main { flex-direction:column; overflow-y:auto; }
+  .lot-list     { width:100%; max-height:45vh; border-right:none; border-bottom:1px solid var(--border); }
+  .center-col   { flex:none; }
+  .spot-panel   { display:none !important; }
+  .map-zone     { padding:10px; }
+}
+
+/* ── Login page layout ──────────────────────────────── */
+.login-wrap { min-height:100vh; display:flex; background:var(--cream); }
+.login-left { width:420px; flex-shrink:0; background:var(--maroon-dark); display:flex; flex-direction:column; justify-content:space-between; padding:48px 44px; }
+.login-right { flex:1; display:flex; align-items:center; justify-content:center; padding:32px 24px; overflow-y:auto; }
+.login-form-box { width:100%; max-width:380px; }
+
+@media (max-width:768px) {
+  .login-left { display:none !important; }
+  .login-right { padding:24px 20px; align-items:flex-start; padding-top:48px; }
+  .login-form-box { max-width:100%; }
+}

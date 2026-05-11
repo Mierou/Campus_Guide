@@ -2,11 +2,11 @@
 import { useEffect, useRef } from 'react'
 
 export type MapMarker = {
+  id?: string | number
   lat: number
   lng: number
   label: string
   color?: string
-  id?: string | number
 }
 
 type RouteLine = { points: { lat: number; lng: number }[]; color?: string }
@@ -21,21 +21,18 @@ type Props = {
   onMarkerClick?: (id: string | number) => void
 }
 
-function makePinHtml(color: string, label: string) {
+function pinHtml(color: string, label: string) {
   const short = label.replace(/\s+Building|\s+Hall|\s+Lot/gi, '').trim().slice(0, 4)
-  return `<div style="display:flex;flex-direction:column;align-items:center;cursor:pointer;">
-    <div style="
-      background:${color};color:white;
-      border:2.5px solid white;
-      border-radius:50% 50% 50% 0;
-      transform:rotate(-45deg);
-      width:32px;height:32px;
-      display:flex;align-items:center;justify-content:center;
-      box-shadow:0 3px 8px rgba(0,0,0,0.45);
-    ">
-      <span style="transform:rotate(45deg);font-size:8px;font-weight:800;font-family:sans-serif;text-align:center;line-height:1.1;max-width:24px;">${short}</span>
-    </div>
-  </div>`
+  return (
+    `<div style="display:flex;flex-direction:column;align-items:center;cursor:pointer;">` +
+    `<div style="background:${color};color:white;border:2.5px solid white;` +
+    `border-radius:50% 50% 50% 0;transform:rotate(-45deg);width:32px;height:32px;` +
+    `display:flex;align-items:center;justify-content:center;` +
+    `box-shadow:0 3px 8px rgba(0,0,0,0.45);">` +
+    `<span style="transform:rotate(45deg);font-size:8px;font-weight:800;` +
+    `font-family:sans-serif;text-align:center;line-height:1.1;max-width:24px;">${short}</span>` +
+    `</div></div>`
+  )
 }
 
 export default function CampusMap({
@@ -47,38 +44,34 @@ export default function CampusMap({
   flyTo,
   onMarkerClick,
 }: Props) {
-  const containerRef    = useRef<HTMLDivElement>(null)
-  const mapRef          = useRef<any>(null)
-  const LRef            = useRef<any>(null)
-  const layersRef       = useRef<any[]>([])
-  const initializedRef  = useRef(false)
-  const destroyedRef    = useRef(false)
-  // Keep latest onMarkerClick in a ref so Leaflet event handlers never go stale
-  const onClickRef      = useRef(onMarkerClick)
-  onClickRef.current    = onMarkerClick
+  const containerRef   = useRef<HTMLDivElement>(null)
+  const mapRef         = useRef<any>(null)
+  const LRef           = useRef<any>(null)
+  const layersRef      = useRef<any[]>([])
+  const readyRef       = useRef(false)
+  const onClickRef     = useRef(onMarkerClick)
+  // Update click ref every render — no stale closures
+  onClickRef.current   = onMarkerClick
 
-  // Stable marker key — only geometry + color, not functions
-  const markersKey = markers.map(m => `${m.id ?? m.label}:${m.lat}:${m.lng}:${m.color ?? ''}`).join('|')
-  const routeKey   = route ? route.points.map(p => `${p.lat},${p.lng}`).join('|') : ''
+  // Stable string keys — prevents unnecessary redraws
+  const mKey = markers.map(m => `${m.id ?? m.label}|${m.lat}|${m.lng}|${m.color ?? ''}`).join(';')
+  const rKey = route ? route.points.map(p => `${p.lat},${p.lng}`).join(';') : ''
 
-  function redraw(L: any, map: any) {
-    layersRef.current.forEach(l => { try { map.removeLayer(l) } catch {} })
+  function draw(L: any, map: any) {
+    layersRef.current.forEach(l => { try { map.removeLayer(l) } catch (_) {} })
     layersRef.current = []
 
     markers.forEach(m => {
       const icon = L.divIcon({
-        html: makePinHtml(m.color ?? '#7B1C1C', m.label),
-        iconSize:      [32, 40],
-        iconAnchor:    [8,  40],
-        tooltipAnchor: [16, -36],
+        html: pinHtml(m.color ?? '#7B1C1C', m.label),
+        iconSize: [32, 40], iconAnchor: [8, 40], tooltipAnchor: [16, -36],
         className: '',
       })
       const mk = L.marker([m.lat, m.lng], { icon })
         .bindTooltip(m.label, { permanent: false, direction: 'top', offset: [8, 0] })
         .addTo(map)
-      // Use ref so the callback is always current, never stale
       const markerId = m.id ?? m.label
-      mk.on('click', () => { onClickRef.current?.(markerId) })
+      mk.on('click', () => onClickRef.current?.(markerId))
       layersRef.current.push(mk)
     })
 
@@ -93,20 +86,21 @@ export default function CampusMap({
     }
   }
 
-  // Init once
+  // Init — runs once on mount
   useEffect(() => {
-    if (initializedRef.current || !containerRef.current) return
-    initializedRef.current = true
-    destroyedRef.current = false
+    if (readyRef.current || !containerRef.current) return
+    let destroyed = false
 
     import('leaflet').then(L => {
-      if (destroyedRef.current || !containerRef.current) return
+      if (destroyed || !containerRef.current) return
       LRef.current = L
 
       const map = L.map(containerRef.current!, {
-        center, zoom, maxZoom: 22, zoomControl: true, scrollWheelZoom: true,
+        center, zoom, maxZoom: 22,
+        zoomControl: true, scrollWheelZoom: true,
       })
       mapRef.current = map
+      readyRef.current = true
 
       const sat = L.tileLayer(
         'https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
@@ -127,12 +121,12 @@ export default function CampusMap({
         {}, { position: 'topright', collapsed: true }
       ).addTo(map)
 
-      redraw(L, map)
+      draw(L, map)
     })
 
     return () => {
-      destroyedRef.current = true
-      initializedRef.current = false
+      destroyed = true
+      readyRef.current = false
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null
@@ -142,17 +136,19 @@ export default function CampusMap({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Redraw when markers/route change
+  // Redraw markers when data changes
   useEffect(() => {
-    if (!mapRef.current || !LRef.current) return
-    redraw(LRef.current, mapRef.current)
-  }, [markersKey, routeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!readyRef.current || !mapRef.current || !LRef.current) return
+    draw(LRef.current, mapRef.current)
+  }, [mKey, rKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // FlyTo
+  // FlyTo — only when flyTo object changes by value
+  const flyKey = flyTo ? `${flyTo.lat}|${flyTo.lng}|${flyTo.zoom ?? 20}` : ''
   useEffect(() => {
-    if (!mapRef.current || !flyTo) return
-    mapRef.current.flyTo([flyTo.lat, flyTo.lng], flyTo.zoom ?? 20, { animate: true, duration: 0.7 })
-  }, [flyTo])
+    if (!flyKey || !readyRef.current || !mapRef.current) return
+    const [lat, lng, z] = flyKey.split('|').map(Number)
+    mapRef.current.flyTo([lat, lng], z, { animate: true, duration: 0.7 })
+  }, [flyKey]) // stable string key — no object reference issues
 
   return (
     <div className="map-wrapper" style={{ height }}>

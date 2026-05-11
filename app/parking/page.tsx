@@ -28,6 +28,7 @@ export default function ParkingPage() {
   const [loadingSpots, setLoadingSpots]   = useState(false)
   const [lotCounts, setLotCounts]         = useState<Record<number,{avail:number;total:number}>>({})
   const [showSpotSheet, setShowSpotSheet] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [flyTo, setFlyTo]                 = useState<FlyTarget>(null)
 
   // Admin modals
@@ -48,6 +49,13 @@ export default function ParkingPage() {
   }
 
   useEffect(() => { loadLots() }, [])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const selectLot = async (lot: Lot) => {
     setSelectedLot(lot); setSelectedSpot(null); setLoadingSpots(true); setShowSpotSheet(false)
@@ -196,24 +204,7 @@ export default function ParkingPage() {
 
   return (
     <>
-      <style>{`
-        .parking-layout{display:flex;min-height:100vh}
-        .parking-main{flex:1;display:flex;overflow:hidden;background:var(--cream)}
-        .lot-list{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
-        .center-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-        .spot-panel{width:240px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
-        .map-zone{padding:12px 12px 0;border-bottom:1px solid var(--border);background:var(--surface)}
-        .grid-zone{flex:1;overflow-y:auto;padding:16px}
-        @media(max-width:768px){
-          .parking-main{flex-direction:column;overflow-y:auto}
-          .lot-list{width:100%;max-height:45vh;border-right:none;border-bottom:1px solid var(--border)}
-          .center-col{flex:none}
-          .spot-panel{display:none!important}
-          .map-zone{padding:10px}
-        }
-      `}</style>
-
-      <div className="parking-layout">
+    <div className="parking-layout">
         <Sidebar/>
         <BottomNav/>
         <main className="parking-main">
@@ -372,9 +363,8 @@ export default function ParkingPage() {
           </div>
 
           {/* Mobile bottom sheet */}
-          {selectedSpot && showSpotSheet && (
-            <div style={{ position:'fixed', bottom:60, left:0, right:0, background:'white', borderRadius:'18px 18px 0 0', borderTop:'1px solid var(--border)', boxShadow:'0 -4px 24px rgba(0,0,0,0.12)', padding:'16px', zIndex:9997, maxHeight:'60vh', overflowY:'auto', display:'none' }} id="spot-sheet">
-              <style>{`@media(max-width:768px){#spot-sheet{display:block!important}}`}</style>
+          {selectedSpot && showSpotSheet && isMobile && (
+            <div style={{ position:'fixed', bottom:60, left:0, right:0, background:'white', borderRadius:'18px 18px 0 0', borderTop:'1px solid var(--border)', boxShadow:'0 -4px 24px rgba(0,0,0,0.12)', padding:'16px', zIndex:9997, maxHeight:'60vh', overflowY:'auto' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Spot Details</div>
                 <button onClick={()=>setShowSpotSheet(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', padding:4 }}><X size={16}/></button>
