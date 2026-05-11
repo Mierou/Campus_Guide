@@ -22,10 +22,30 @@ export default function CampusMap({ center = [10.2945, 123.8811], zoom = 19, mar
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
     import('leaflet').then((L) => {
-      const map = L.map(mapRef.current!, { center, zoom, zoomControl: true, scrollWheelZoom: true })
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri Satellite', maxZoom: 20,
-      }).addTo(map)
+      const map = L.map(mapRef.current!, { center, zoom, zoomControl: true, scrollWheelZoom: true, maxZoom: 22 })
+      // Google Maps hybrid (satellite + labels) — goes up to zoom 22
+      const satellite = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        attribution: '© Google Maps',
+        maxZoom: 22,
+        maxNativeZoom: 21,
+        subdomains: ['0','1','2','3'],
+      })
+
+      // OpenStreetMap fallback layer (toggle)
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 22,
+        maxNativeZoom: 19,
+      })
+
+      satellite.addTo(map)
+
+      // Layer control (top-right)
+      L.control.layers(
+        { 'Satellite': satellite, 'Street Map': osm },
+        {},
+        { position: 'topright', collapsed: true }
+      ).addTo(map)
       mapInstanceRef.current = { map, L, layers: [] }
     })
     return () => {
