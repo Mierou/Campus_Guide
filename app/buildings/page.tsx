@@ -77,18 +77,49 @@ export default function BuildingsPage() {
     setSelected(null); setSaving(false); setModal(null)
   }
 
-  const selectBuilding = (b: Building) => { setSelected(b); setFlyTo({ lat:b.latitude, lng:b.longitude, zoom:20 }) }
+  const isValidCoordinate = (lat?: number, lng?: number) => {
+  return (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    !Number.isNaN(lat) &&
+    !Number.isNaN(lng)
+    )
+  }
+  
+  const selectBuilding = (b: Building) => {
+  setSelected(b)
 
+  if (isValidCoordinate(b.latitude, b.longitude)) {
+    setFlyTo({
+      lat: Number(b.latitude),
+      lng: Number(b.longitude),
+      zoom: 20,
+    })
+  }
+}
+  
   const filtered = useMemo(() => buildings.filter(b =>
     (filter==='All' || b.filter_category===filter) &&
     b.name.toLowerCase().includes(search.toLowerCase())
   ), [buildings, filter, search])
 
-  const markers = useMemo(() => filtered.map(b => ({
-    id: b.id,
-    lat: b.latitude, lng: b.longitude, label: b.name,
-    color: selected?.id===b.id ? '#D4A017' : (b.is_open ? '#1a7a40' : '#c0392b'),
-  })), [filtered, selected?.id])
+  const markers = useMemo(() =>
+  filtered
+    .filter(b => isValidCoordinate(b.latitude, b.longitude))
+    .map(b => ({
+      id: b.id,
+      lat: Number(b.latitude),
+      lng: Number(b.longitude),
+      label: b.name,
+      color:
+        selected?.id === b.id
+          ? '#D4A017'
+          : b.is_open
+          ? '#1a7a40'
+          : '#c0392b',
+    })),
+  [filtered, selected?.id]
+)
 
   const handleMarkerClick = (id: string | number) => {
     const b = buildings.find(b => b.id === id)
