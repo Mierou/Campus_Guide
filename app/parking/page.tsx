@@ -151,11 +151,15 @@ export default function ParkingPage() {
   const pct = stats.total ? Math.round(stats.occ/stats.total*100) : 0
 
   const markers = useMemo(() => lots.map(lot=>({
+    id: lot.id,
     lat:lot.latitude, lng:lot.longitude, label:lot.lot_name,
     color:selectedLot?.id===lot.id?'#D4A017':'#1a7a40',
-    onClick:()=>selectLot(lot),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [lots, selectedLot?.id])
+
+  const handleMarkerClick = (id: string | number) => {
+    const lot = lots.find(l => l.id === id)
+    if (lot) selectLot(lot)
+  }
 
   const SpotActions = ({ spot }: { spot: Spot }) => (
     <div>
@@ -274,7 +278,7 @@ export default function ParkingPage() {
           {/* Center */}
           <div className="center-col">
             <div className="map-zone">
-              <CampusMap markers={markers} height="170px" flyTo={flyTo}/>
+              <CampusMap markers={markers} height="170px" flyTo={flyTo} onMarkerClick={handleMarkerClick}/>
             </div>
 
             {/* Stats bar */}

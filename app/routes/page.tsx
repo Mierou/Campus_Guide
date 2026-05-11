@@ -119,8 +119,8 @@ function RoutesInner() {
   const fromLoc = locations.find(l=>l.name===from)
   const toLoc   = locations.find(l=>l.name===to)
   const markers = useMemo(() => [
-    fromLoc && { lat:fromLoc.latitude, lng:fromLoc.longitude, label:`Start: ${from}`, color:'#1a7a40' },
-    toLoc   && { lat:toLoc.latitude,   lng:toLoc.longitude,   label:`End: ${to}`,     color:'#c0392b' },
+    fromLoc && { id:'from', lat:fromLoc.latitude, lng:fromLoc.longitude, label:`Start: ${from}`, color:'#1a7a40' },
+    toLoc   && { id:'to',   lat:toLoc.latitude,   lng:toLoc.longitude,   label:`End: ${to}`,     color:'#c0392b' },
   ].filter(Boolean) as any[], [fromLoc, toLoc, from, to])
 
   // Routes for selected from/to pair
@@ -190,7 +190,7 @@ function RoutesInner() {
                   {showMap && (
                     <div id="mobile-map-r" style={{ display:'none' }}>
                       <style>{`@media(max-width:768px){#mobile-map-r{display:block!important}}`}</style>
-                      <CampusMap markers={markers} route={activeRoute} height="220px"/>
+                      <CampusMap markers={markers} route={activeRoute} height="220px" />
                     </div>
                   )}
 
@@ -274,7 +274,7 @@ function RoutesInner() {
           {/* Desktop map */}
           <div style={{ flex:1, padding:16 }} id="desktop-map-r">
             <style>{`@media(max-width:768px){#desktop-map-r{display:none!important}}`}</style>
-            <CampusMap markers={markers} route={activeRoute} height="calc(100vh - 32px)"/>
+            <CampusMap markers={markers} route={activeRoute} height="calc(100vh - 32px)" />
           </div>
         </main>
       </div>

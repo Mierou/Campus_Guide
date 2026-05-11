@@ -85,11 +85,15 @@ export default function BuildingsPage() {
   ), [buildings, filter, search])
 
   const markers = useMemo(() => filtered.map(b => ({
+    id: b.id,
     lat: b.latitude, lng: b.longitude, label: b.name,
     color: selected?.id===b.id ? '#D4A017' : (b.is_open ? '#1a7a40' : '#c0392b'),
-    onClick: () => selectBuilding(b),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [filtered, selected?.id])
+
+  const handleMarkerClick = (id: string | number) => {
+    const b = buildings.find(b => b.id === id)
+    if (b) selectBuilding(b)
+  }
 
   const col = (abbr: string) => ABBR_COLORS[abbr] ?? 'var(--maroon)'
 
@@ -138,7 +142,7 @@ export default function BuildingsPage() {
 
           {/* Mobile map — shown above list on mobile */}
           <div className="bldg-mobile-map">
-            <CampusMap markers={markers} height="220px" flyTo={flyTo} />
+            <CampusMap markers={markers} height="220px" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
           </div>
 
           <div className="bldg-body">
@@ -181,7 +185,7 @@ export default function BuildingsPage() {
             {/* Desktop map + detail */}
             <div className="bldg-map">
               <div style={{ flex:1, padding:16 }}>
-                <CampusMap markers={markers} height="100%" flyTo={flyTo} />
+                <CampusMap markers={markers} height="100%" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
               </div>
               {selected && (
                 <div style={{ background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'14px 20px', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>

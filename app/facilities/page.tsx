@@ -83,11 +83,15 @@ export default function FacilitiesPage() {
   ), [facilities, filter, search])
 
   const markers = useMemo(() => filtered.map(f => ({
+    id: f.id,
     lat: f.latitude, lng: f.longitude, label: f.name,
     color: selected?.id===f.id ? '#D4A017' : (f.is_open ? '#1a7a40' : '#c0392b'),
-    onClick: () => selectFacility(f),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [filtered, selected?.id])
+
+  const handleMarkerClick = (id: string | number) => {
+    const f = facilities.find(f => f.id === id)
+    if (f) selectFacility(f)
+  }
 
   return (
     <>
@@ -130,7 +134,7 @@ export default function FacilitiesPage() {
 
           {/* Mobile map */}
           <div className="fac-mobile-map">
-            <CampusMap markers={markers} height="220px" flyTo={flyTo} />
+            <CampusMap markers={markers} height="220px" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
           </div>
 
           <div className="fac-body">
@@ -171,7 +175,7 @@ export default function FacilitiesPage() {
             {/* Desktop map + detail */}
             <div className="fac-map">
               <div style={{ flex:1, padding:16 }}>
-                <CampusMap markers={markers} height="100%" flyTo={flyTo} />
+                <CampusMap markers={markers} height="100%" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
               </div>
               {selected && (
                 <div style={{ background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'14px 20px', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>

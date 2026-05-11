@@ -40,11 +40,15 @@ export default function HomePage() {
   }, [])
 
   const markers = useMemo(() => locations.map(loc => ({
+    id: loc.name,
     lat: loc.lat, lng: loc.lng, label: loc.name,
     color: selected?.name === loc.name ? '#D4A017' : (loc.is_open ? '#1a7a40' : '#c0392b'),
-    onClick: () => { setSelected(loc); setFlyTo({ lat: loc.lat, lng: loc.lng, zoom: 20 }) },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [locations, selected?.name])
+
+  const handleMarkerClick = (id: string | number) => {
+    const loc = locations.find(l => l.name === id)
+    if (loc) { setSelected(loc); setFlyTo({ lat: loc.lat, lng: loc.lng, zoom: 20 }) }
+  }
 
   const openCount  = locations.filter(l => l.is_open).length
   const buildCount = locations.filter(l => l.type === 'Building').length
@@ -80,7 +84,7 @@ export default function HomePage() {
         <div style={{ flex: 1, position: 'relative', padding: 12, overflow: 'hidden' }}>
           {loading
             ? <div style={{ height: 'calc(100vh - 90px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading campus data…</div>
-            : <CampusMap markers={markers} height="calc(100vh - 90px)" flyTo={flyTo} />
+            : <CampusMap markers={markers} height="calc(100vh - 90px)" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
           }
 
           {selected && (
