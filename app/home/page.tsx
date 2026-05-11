@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
@@ -39,11 +39,12 @@ export default function HomePage() {
     load()
   }, [])
 
-  const markers = locations.map(loc => ({
+  const markers = useMemo(() => locations.map(loc => ({
     lat: loc.lat, lng: loc.lng, label: loc.name,
     color: selected?.name === loc.name ? '#D4A017' : (loc.is_open ? '#1a7a40' : '#c0392b'),
     onClick: () => { setSelected(loc); setFlyTo({ lat: loc.lat, lng: loc.lng, zoom: 20 }) },
-  }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [locations, selected?.name])
 
   const openCount  = locations.filter(l => l.is_open).length
   const buildCount = locations.filter(l => l.type === 'Building').length

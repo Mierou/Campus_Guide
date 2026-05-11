@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
@@ -79,15 +79,18 @@ export default function BuildingsPage() {
 
   const selectBuilding = (b: Building) => { setSelected(b); setFlyTo({ lat:b.latitude, lng:b.longitude, zoom:20 }) }
 
-  const filtered = buildings.filter(b =>
+  const filtered = useMemo(() => buildings.filter(b =>
     (filter==='All' || b.filter_category===filter) &&
     b.name.toLowerCase().includes(search.toLowerCase())
-  )
-  const markers = filtered.map(b => ({
-    lat:b.latitude, lng:b.longitude, label:b.name,
+  ), [buildings, filter, search])
+
+  const markers = useMemo(() => filtered.map(b => ({
+    lat: b.latitude, lng: b.longitude, label: b.name,
     color: selected?.id===b.id ? '#D4A017' : (b.is_open ? '#1a7a40' : '#c0392b'),
     onClick: () => selectBuilding(b),
-  }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [filtered, selected?.id])
+
   const col = (abbr: string) => ABBR_COLORS[abbr] ?? 'var(--maroon)'
 
   return (

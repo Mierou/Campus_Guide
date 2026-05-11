@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
@@ -118,10 +118,10 @@ function RoutesInner() {
 
   const fromLoc = locations.find(l=>l.name===from)
   const toLoc   = locations.find(l=>l.name===to)
-  const markers = [
+  const markers = useMemo(() => [
     fromLoc && { lat:fromLoc.latitude, lng:fromLoc.longitude, label:`Start: ${from}`, color:'#1a7a40' },
     toLoc   && { lat:toLoc.latitude,   lng:toLoc.longitude,   label:`End: ${to}`,     color:'#c0392b' },
-  ].filter(Boolean) as any[]
+  ].filter(Boolean) as any[], [fromLoc, toLoc, from, to])
 
   // Routes for selected from/to pair
   const pairRoutes = routes.filter(r => r.from_location===from && r.to_location===to)

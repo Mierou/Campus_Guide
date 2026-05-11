@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
@@ -77,15 +77,17 @@ export default function FacilitiesPage() {
 
   const selectFacility = (f: Facility) => { setSelected(f); setFlyTo({ lat:f.latitude, lng:f.longitude, zoom:20 }) }
 
-  const filtered = facilities.filter(f =>
+  const filtered = useMemo(() => facilities.filter(f =>
     (filter==='All' || f.category===filter) &&
     f.name.toLowerCase().includes(search.toLowerCase())
-  )
-  const markers = filtered.map(f => ({
-    lat:f.latitude, lng:f.longitude, label:f.name,
+  ), [facilities, filter, search])
+
+  const markers = useMemo(() => filtered.map(f => ({
+    lat: f.latitude, lng: f.longitude, label: f.name,
     color: selected?.id===f.id ? '#D4A017' : (f.is_open ? '#1a7a40' : '#c0392b'),
     onClick: () => selectFacility(f),
-  }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [filtered, selected?.id])
 
   return (
     <>

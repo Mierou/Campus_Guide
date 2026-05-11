@@ -150,11 +150,12 @@ export default function ParkingPage() {
 
   const pct = stats.total ? Math.round(stats.occ/stats.total*100) : 0
 
-  const markers = lots.map(lot=>({
+  const markers = useMemo(() => lots.map(lot=>({
     lat:lot.latitude, lng:lot.longitude, label:lot.lot_name,
     color:selectedLot?.id===lot.id?'#D4A017':'#1a7a40',
     onClick:()=>selectLot(lot),
-  }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [lots, selectedLot?.id])
 
   const SpotActions = ({ spot }: { spot: Spot }) => (
     <div>
