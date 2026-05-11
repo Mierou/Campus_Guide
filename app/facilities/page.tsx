@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
 import AdminModal, { Field, TextInput, SelectInput, ToggleInput, ConfirmDelete } from '@/components/AdminModal'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
-import { Search, Clock, Navigation, Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Search, Clock, Navigation, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const CampusMap = dynamic(() => import('@/components/CampusMap'), { ssr: false })
@@ -14,7 +14,7 @@ const CampusMap = dynamic(() => import('@/components/CampusMap'), { ssr: false }
 type Facility = { id: number; name: string; emoji: string; category: string; services: string[]; hours: string; latitude: number; longitude: number; is_open: boolean }
 type FlyTarget = { lat: number; lng: number; zoom?: number } | null
 
-const FILTERS   = ['All', 'Food', 'Sports', 'Academic', 'Leisure']
+const FILTERS = ['All', 'Food', 'Sports', 'Academic', 'Leisure']
 const CATEGORIES = ['Food', 'Sports', 'Academic', 'Leisure']
 const EMPTY: Omit<Facility,'id'> = { name:'', emoji:'📍', category:'Academic', services:[], hours:'', latitude:10.2945, longitude:123.8811, is_open:true }
 
@@ -29,18 +29,12 @@ export default function FacilitiesPage() {
   const [selected, setSelected]     = useState<Facility | null>(null)
   const [loading, setLoading]       = useState(true)
   const [flyTo, setFlyTo]           = useState<FlyTarget>(null)
-  const [isMobile, setIsMobile]     = useState(false)
+  const [showMap, setShowMap]       = useState(false)
 
-  const [modal, setModal]       = useState<'add'|'edit'|'delete'|null>(null)
-  const [form, setForm]         = useState<Omit<Facility,'id'>>(EMPTY)
-  const [svcInput, setSvcInput] = useState('')
-  const [saving, setSaving]     = useState(false)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 768)
-    check(); window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
+  const [modal, setModal]           = useState<'add'|'edit'|'delete'|null>(null)
+  const [form, setForm]             = useState<Omit<Facility,'id'>>(EMPTY)
+  const [svcInput, setSvcInput]     = useState('')
+  const [saving, setSaving]         = useState(false)
 
   const load = async () => {
     const { data } = await supabase.from('facilities').select('*').order('name')
@@ -48,7 +42,7 @@ export default function FacilitiesPage() {
   }
   useEffect(() => { load() }, [])
 
-  const openAdd  = () => { setForm(EMPTY); setSvcInput(''); setModal('add') }
+  const openAdd = () => { setForm(EMPTY); setSvcInput(''); setModal('add') }
   const openEdit = (f: Facility) => {
     setForm({ name:f.name, emoji:f.emoji, category:f.category, services:f.services??[], hours:f.hours, latitude:f.latitude, longitude:f.longitude, is_open:f.is_open })
     setSvcInput((f.services??[]).join(', ')); setModal('edit')
@@ -57,10 +51,10 @@ export default function FacilitiesPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true)
     const payload = { ...form, services: svcInput.split(',').map(s=>s.trim()).filter(Boolean) }
-    if (modal==='add') {
+    if (modal === 'add') {
       const { data } = await supabase.from('facilities').insert(payload).select().single()
       if (data) setFacilities(p => [...p, data].sort((a,b)=>a.name.localeCompare(b.name)))
-    } else if (modal==='edit' && selected) {
+    } else if (modal === 'edit' && selected) {
       await supabase.from('facilities').update(payload).eq('id', selected.id)
       setFacilities(p => p.map(f => f.id===selected.id ? {...f,...payload} : f))
       setSelected(prev => prev ? {...prev,...payload} : prev)
@@ -75,30 +69,23 @@ export default function FacilitiesPage() {
     setSelected(null); setSaving(false); setModal(null)
   }
 
-  const selectFacility = (f: Facility) => { setSelected(f); setFlyTo({ lat:f.latitude, lng:f.longitude, zoom:20 }) }
+  const selectFacility = (f: Facility) => { setSelected(f); setFlyTo({ lat: f.latitude, lng: f.longitude, zoom: 20 }) }
 
-  const filtered = useMemo(() => facilities.filter(f =>
-    (filter==='All' || f.category===filter) &&
-    f.name.toLowerCase().includes(search.toLowerCase())
-  ), [facilities, filter, search])
-
-  const markers = useMemo(() => filtered.map(f => ({
-    id: f.id,
-    lat: f.latitude, lng: f.longitude, label: f.name,
+  const filtered = facilities.filter(f =>
+    (filter==='All'||f.category===filter) && f.name.toLowerCase().includes(search.toLowerCase())
+  )
+  const markers = filtered.map(f => ({
+    lat:f.latitude, lng:f.longitude, label:f.name,
     color: selected?.id===f.id ? '#D4A017' : (f.is_open ? '#1a7a40' : '#c0392b'),
-  })), [filtered, selected?.id])
-
-  const handleMarkerClick = (id: string | number) => {
-    const f = facilities.find(f => f.id === id)
-    if (f) selectFacility(f)
-  }
+    onClick: () => selectFacility(f),
+  }))
 
   return (
     <>
-    <div className="fac-wrap">
+      <div style={{ display:'flex', minHeight:'100vh' }}>
         <Sidebar />
         <BottomNav />
-        <main className="fac-main">
+        <main style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'var(--cream)' }}>
           <div className="page-header" style={{ gap:10, flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:120 }}>
               <h1 style={{ fontSize:17, fontWeight:700 }}>Facilities</h1>
@@ -108,42 +95,40 @@ export default function FacilitiesPage() {
               <Search size={13} style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'var(--muted2)' }} />
               <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ paddingLeft:32, width:'100%', padding:'8px 14px 8px 32px' }} />
             </div>
+            <button onClick={()=>setShowMap(v=>!v)} className="btn-ghost" style={{ fontSize:12.5, padding:'7px 12px' }}>
+              {showMap ? <><ChevronUp size={13}/> Hide Map</> : <><ChevronDown size={13}/> Show Map</>}
+            </button>
             {isAdmin && (
-              <button onClick={openAdd} className="btn-primary" style={{ fontSize:13, padding:'7px 14px', gap:6, flexShrink:0 }}>
+              <button onClick={openAdd} className="btn-primary" style={{ fontSize:13, padding:'7px 14px', gap:6 }}>
                 <Plus size={14}/> Add Facility
               </button>
             )}
           </div>
 
-          {/* Mobile map */}
-          <div className="fac-mobile-map">
-            <CampusMap markers={markers} height="220px" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
-          </div>
+          {showMap && <div style={{ padding:'0 12px 12px' }}><CampusMap markers={markers} height="220px" flyTo={flyTo}/></div>}
 
-          <div className="fac-body">
+          <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
             {/* List */}
-            <div className="fac-list">
-              <div className="fac-filter-row">
-                {FILTERS.map(f=>(
-                  <button key={f} className={`pill ${filter===f?'active':''}`} onClick={()=>setFilter(f)} style={{ flexShrink:0 }}>{f}</button>
-                ))}
+            <div style={{ width:288, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', flexShrink:0 }}>
+              <div className="pill-row" style={{ display:'flex', gap:6, padding:'10px 14px', borderBottom:'1px solid var(--border)' }}>
+                {FILTERS.map(f=><button key={f} className={`pill ${filter===f?'active':''}`} onClick={()=>setFilter(f)}>{f}</button>)}
               </div>
               <div style={{ flex:1, overflowY:'auto' }}>
                 {loading && <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13.5 }}>Loading…</div>}
                 {filtered.map(f => {
                   const active = selected?.id===f.id
                   return (
-                    <div key={f.id} style={{ display:'flex', alignItems:'center', borderBottom:'1px solid var(--border)', background:active?'var(--maroon-pale)':'transparent', transition:'background 0.15s' }}>
-                      <button onClick={()=>selectFacility(f)} style={{ flex:1, display:'flex', alignItems:'center', gap:10, padding:'11px 12px', border:'none', cursor:'pointer', textAlign:'left', background:'transparent', minWidth:0 }}>
+                    <div key={f.id} style={{ display:'flex', alignItems:'center', borderBottom:'1px solid var(--border)', background:active?'var(--maroon-pale)':'transparent' }}>
+                      <button onClick={()=>selectFacility(f)} style={{ flex:1, display:'flex', alignItems:'center', gap:12, padding:'12px 14px', border:'none', cursor:'pointer', textAlign:'left', background:'transparent' }}>
                         <div style={{ width:38, height:38, borderRadius:10, background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>{f.emoji}</div>
                         <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:13.5, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{f.name}</div>
+                          <div style={{ fontSize:13.5, fontWeight:600 }}>{f.name}</div>
                           <div style={{ fontSize:11.5, color:'var(--muted)', marginTop:2 }}>{f.category} · {f.hours}</div>
                         </div>
                         <div style={{ width:8, height:8, borderRadius:'50%', background:f.is_open?'var(--green)':'var(--red)', flexShrink:0 }}/>
                       </button>
                       {isAdmin && (
-                        <div style={{ display:'flex', gap:1, paddingRight:6 }}>
+                        <div style={{ display:'flex', gap:2, paddingRight:8 }}>
                           <button onClick={()=>{setSelected(f);openEdit(f)}} style={{ background:'none', border:'none', cursor:'pointer', padding:'6px', borderRadius:7, color:'var(--muted)' }}><Pencil size={13}/></button>
                           <button onClick={()=>{setSelected(f);setModal('delete')}} style={{ background:'none', border:'none', cursor:'pointer', padding:'6px', borderRadius:7, color:'var(--red)' }}><Trash2 size={13}/></button>
                         </div>
@@ -151,24 +136,21 @@ export default function FacilitiesPage() {
                     </div>
                   )
                 })}
-                {!loading && !filtered.length && <div style={{ textAlign:'center', padding:40, color:'var(--muted)', fontSize:13.5 }}>No facilities found</div>}
               </div>
             </div>
 
             {/* Desktop map + detail */}
-            <div className="fac-map">
-              <div style={{ flex:1, padding:16 }}>
-                <CampusMap markers={markers} height="100%" flyTo={flyTo} onMarkerClick={handleMarkerClick} />
-              </div>
+            <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }} className="hidden-mobile">
+              <div style={{ flex:1, padding:16 }}><CampusMap markers={markers} height="100%" flyTo={flyTo}/></div>
               {selected && (
-                <div style={{ background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'14px 20px', display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+                <div style={{ background:'var(--surface)', borderTop:'1px solid var(--border)', padding:'14px 20px', display:'flex', alignItems:'center', gap:14 }}>
                   <div style={{ fontSize:34, lineHeight:1, flexShrink:0 }}>{selected.emoji}</div>
-                  <div style={{ flex:1, minWidth:180 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
                       <span style={{ fontSize:14, fontWeight:700 }}>{selected.name}</span>
                       <span className={selected.is_open?'badge-open':'badge-closed'} style={{ fontSize:11, padding:'3px 9px', borderRadius:99 }}>{selected.is_open?'Open':'Closed'}</span>
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:5, color:'var(--muted)', fontSize:12, marginBottom:5 }}><Clock size={11}/>{selected.hours}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:5, color:'var(--muted)', fontSize:12, marginBottom:6 }}><Clock size={11}/>{selected.hours}</div>
                     <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
                       {(selected.services??[]).map(s=><span key={s} style={{ fontSize:11, padding:'2px 8px', borderRadius:99, background:'var(--maroon-pale)', color:'var(--maroon)', fontWeight:600 }}>{s}</span>)}
                     </div>
@@ -187,21 +169,19 @@ export default function FacilitiesPage() {
             </div>
           </div>
 
-          {/* Mobile detail — React state based, no crash */}
-          {selected && isMobile && (
-            <div style={{ position:'fixed', bottom:68, left:12, right:12, background:'var(--surface)', borderRadius:16, border:'1px solid var(--border)', boxShadow:'0 -4px 24px rgba(0,0,0,0.12)', padding:'14px 16px', zIndex:9990 }} className="fade-up">
+          {/* Mobile detail */}
+          {selected && (
+            <div style={{ display:'none', position:'fixed', bottom:68, left:12, right:12, background:'var(--surface)', borderRadius:16, border:'1px solid var(--border)', boxShadow:'0 -4px 24px rgba(0,0,0,0.1)', padding:'14px 16px', zIndex:9990 }} id="f-mobile-detail">
+              <style>{`@media(max-width:768px){#f-mobile-detail{display:block!important}}`}</style>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, minWidth:0 }}>
-                  <span style={{ fontSize:26, flexShrink:0 }}>{selected.emoji}</span>
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontWeight:700, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{selected.name}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:28 }}>{selected.emoji}</span>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:14 }}>{selected.name}</div>
                     <div style={{ fontSize:12, color:'var(--muted)', marginTop:1 }}>{selected.hours}</div>
                   </div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0, marginLeft:8 }}>
-                  <span className={selected.is_open?'badge-open':'badge-closed'} style={{ fontSize:11, padding:'3px 9px', borderRadius:99 }}>{selected.is_open?'Open':'Closed'}</span>
-                  <button onClick={()=>setSelected(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', padding:2 }}><X size={15}/></button>
-                </div>
+                <span className={selected.is_open?'badge-open':'badge-closed'} style={{ fontSize:11, padding:'3px 9px', borderRadius:99 }}>{selected.is_open?'Open':'Closed'}</span>
               </div>
               <div style={{ display:'flex', gap:7 }}>
                 {isAdmin && (
@@ -219,21 +199,23 @@ export default function FacilitiesPage() {
 
       {(modal==='add'||modal==='edit') && (
         <AdminModal title={modal==='add'?'Add Facility':`Edit — ${selected?.name}`} onClose={()=>setModal(null)} onSubmit={handleSave} loading={saving} submitLabel={modal==='add'?'Add Facility':'Save Changes'}>
-          <Field label="Name"><TextInput value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="e.g. College Library" required /></Field>
+          <Field label="Name"><TextInput value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="e.g. College Library" required/></Field>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <Field label="Emoji"><TextInput value={form.emoji} onChange={v=>setForm(p=>({...p,emoji:v}))} placeholder="📍" /></Field>
-            <Field label="Category"><SelectInput value={form.category} onChange={v=>setForm(p=>({...p,category:v}))} options={CATEGORIES.map(c=>({value:c,label:c}))} /></Field>
+            <Field label="Emoji"><TextInput value={form.emoji} onChange={v=>setForm(p=>({...p,emoji:v}))} placeholder="📍"/></Field>
+            <Field label="Category">
+              <SelectInput value={form.category} onChange={v=>setForm(p=>({...p,category:v}))} options={CATEGORIES.map(c=>({value:c,label:c}))}/>
+            </Field>
           </div>
-          <Field label="Services (comma-separated)"><TextInput value={svcInput} onChange={setSvcInput} placeholder="e.g. Library Services, Research" /></Field>
-          <Field label="Hours"><TextInput value={form.hours} onChange={v=>setForm(p=>({...p,hours:v}))} placeholder="8:00 AM – 9:00 PM" /></Field>
+          <Field label="Services (comma-separated)"><TextInput value={svcInput} onChange={setSvcInput} placeholder="e.g. Library Services, Research"/></Field>
+          <Field label="Hours"><TextInput value={form.hours} onChange={v=>setForm(p=>({...p,hours:v}))} placeholder="8:00 AM – 9:00 PM"/></Field>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <Field label="Latitude"><TextInput type="number" value={String(form.latitude)} onChange={v=>setForm(p=>({...p,latitude:parseFloat(v)||0}))} placeholder="10.2945" /></Field>
-            <Field label="Longitude"><TextInput type="number" value={String(form.longitude)} onChange={v=>setForm(p=>({...p,longitude:parseFloat(v)||0}))} placeholder="123.8811" /></Field>
+            <Field label="Latitude"><TextInput type="number" value={String(form.latitude)} onChange={v=>setForm(p=>({...p,latitude:parseFloat(v)||0}))} placeholder="10.2945"/></Field>
+            <Field label="Longitude"><TextInput type="number" value={String(form.longitude)} onChange={v=>setForm(p=>({...p,longitude:parseFloat(v)||0}))} placeholder="123.8811"/></Field>
           </div>
-          <ToggleInput label="Currently Open" value={form.is_open} onChange={v=>setForm(p=>({...p,is_open:v}))} />
+          <ToggleInput label="Currently Open" value={form.is_open} onChange={v=>setForm(p=>({...p,is_open:v}))}/>
         </AdminModal>
       )}
-      {modal==='delete' && selected && <ConfirmDelete name={selected.name} onConfirm={handleDelete} onCancel={()=>setModal(null)} loading={saving} />}
+      {modal==='delete' && selected && <ConfirmDelete name={selected.name} onConfirm={handleDelete} onCancel={()=>setModal(null)} loading={saving}/>}
     </>
   )
 }
