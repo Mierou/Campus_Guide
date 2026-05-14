@@ -163,6 +163,8 @@ export default function LoginPage() {
                 <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', marginTop: 2, padding: '12px 0', fontSize: 15, opacity: loading ? 0.7 : 1, borderRadius: 12 }}>
                   {loading ? 'Signing in…' : <><span>Sign In</span><ArrowRight size={16} /></>}
                 </button>
+                <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted2)', padding: '10px 14px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                  Demo: <strong style={{ color: 'var(--text)' }}>admin / admin123</strong> · <strong style={{ color: 'var(--text)' }}>student / student123</strong>
                 </div>
               </form>
             ) : (
