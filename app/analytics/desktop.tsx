@@ -221,6 +221,8 @@ export default function AnalyticsDesktop() {
                 </table>
               </div>
             </div>
+
+          <GuardManager />
           </div>
         )}
       </main>

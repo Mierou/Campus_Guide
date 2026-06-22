@@ -354,3 +354,25 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
   .login-right { padding:24px 20px; align-items:flex-start; padding-top:48px; }
   .login-form-box { max-width:100%; }
 }
+
+/* Bottom nav — compact when many items */
+.bottom-nav-item {
+  min-width: 0;
+  padding: 4px 2px !important;
+}
+.bottom-nav-item span {
+  font-size: 9.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.bottom-nav-item svg {
+  flex-shrink: 0;
+}
+
+/* Logout item — subtle red tint on hover */
+.bottom-nav-item:last-child:hover {
+  color: #ff9090 !important;
+  background: rgba(255,80,80,0.12) !important;
+}
