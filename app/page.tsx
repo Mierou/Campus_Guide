@@ -33,10 +33,10 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const { data, error: err } = await supabase
-        .from('users').select('id, username, full_name, role, password').eq('username', username).single()
+        .from('users').select('id, username, full_name, role, password, assigned_lot_id').eq('username', username).single()
       if (err || !data) { setError('Incorrect username or password.') }
       else if (data.password !== password) { setError('Incorrect username or password.') }
-      else { const { password: _, ...safeUser } = data; setUser(safeUser as any); router.push('/home') }
+      else { const { password: _, ...safeUser } = data; setUser(safeUser as any); router.push(safeUser.role === 'Guard' ? '/guard' : '/home') }
     } catch { setError('Connection error. Please check your Supabase settings.') }
     setLoading(false)
   }

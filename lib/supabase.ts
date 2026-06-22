@@ -16,5 +16,6 @@ export type User = {
   id: number
   username: string
   full_name: string
-  role: 'Admin' | 'User'
+  role: 'Admin' | 'User' | 'Guard'
+  assigned_lot_id?: number | null
 }

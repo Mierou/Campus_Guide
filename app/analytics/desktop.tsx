@@ -5,6 +5,7 @@ import { useSession } from '@/lib/session'
 import { supabase } from '@/lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { TrendingUp, Car, Clock, Users } from 'lucide-react'
+import GuardManager from '@/components/GuardManager'
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const PIE_COLORS = ['#6D1A1A','#9e2a2a','#c94040','#D4A017','#888']

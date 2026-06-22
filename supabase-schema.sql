@@ -207,3 +207,22 @@ create table if not exists public.routes (
 alter table public.routes disable row level security;
 grant select, insert, update, delete on public.routes to anon;
 grant usage, select on sequence public.routes_id_seq to anon;
+
+-- =============================================
+-- GUARD ROLE SUPPORT (run this to add guard accounts)
+-- =============================================
+
+-- Add assigned_lot_id column to users (for guards)
+alter table public.users
+  add column if not exists assigned_lot_id integer references public.parking_lots(id) on delete set null;
+
+-- Update role check to allow Guard
+alter table public.users
+  drop constraint if exists users_role_check;
+
+alter table public.users
+  add constraint users_role_check check (role in ('Admin', 'User', 'Guard'));
+
+-- Example: create a guard account assigned to lot 1
+-- insert into public.users (username, password, full_name, role, assigned_lot_id)
+-- values ('guard1', 'guard123', 'Guard - Backgate', 'Guard', 1);
