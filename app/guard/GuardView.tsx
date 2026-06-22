@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/session'
 import { useRouter } from 'next/navigation'
-import { Car, LogOut, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { Car, LogOut, RefreshCw, CheckCircle, XCircle, Clock, ChevronDown } from 'lucide-react'
 
 type Spot = {
   id: number
@@ -15,29 +15,25 @@ type Spot = {
   reserved_label: string
 }
 
-type Lot = {
-  id: number
-  lot_name: string
-  departments: string
-  hours: string
-}
+type Lot = { id: number; lot_name: string; hours: string }
 
-type Props = {
-  layout: 'desktop' | 'mobile'
-}
+type Props = { layout: 'desktop' | 'mobile' }
 
 export default function GuardView({ layout }: Props) {
   const { user, logout } = useSession()
   const router = useRouter()
 
-  const [lot, setLot]           = useState<Lot | null>(null)
-  const [spots, setSpots]       = useState<Spot[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [time, setTime]         = useState('')
-  const [toggling, setToggling] = useState<number | null>(null)
+  const [assignedLots, setAssignedLots] = useState<Lot[]>([])
+  const [activeLot, setActiveLot]       = useState<Lot | null>(null)
+  const [spots, setSpots]               = useState<Spot[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [loadingSpots, setLoadingSpots] = useState(false)
+  const [refreshing, setRefreshing]     = useState(false)
+  const [time, setTime]                 = useState('')
+  const [toggling, setToggling]         = useState<number | null>(null)
+  const [showLotPicker, setShowLotPicker] = useState(false)
 
-  // Redirect if not a guard
+  // Redirect non-guards
   useEffect(() => {
     if (user && user.role !== 'Guard') router.push('/home')
     if (!user) router.push('/')
@@ -51,45 +47,59 @@ export default function GuardView({ layout }: Props) {
     return () => clearInterval(id)
   }, [])
 
-  const loadData = async (showRefresh = false) => {
+  // Load assigned lots
+  useEffect(() => {
     if (!user) return
-    if (showRefresh) setRefreshing(true)
+    async function loadLots() {
+      const { data: assignments } = await supabase
+        .from('guard_lot_assignments')
+        .select('lot_id, parking_lots(id, lot_name, hours)')
+        .eq('guard_id', user!.id)
 
-    // Load assigned lot
-    const lotId = (user as any).assigned_lot_id
-    if (lotId) {
-      const { data: lotData } = await supabase
-        .from('parking_lots').select('*').eq('id', lotId).single()
-      setLot(lotData ?? null)
+      const lots: Lot[] = (assignments ?? [])
+        .map((a: any) => a.parking_lots)
+        .filter(Boolean)
+        .sort((a: Lot, b: Lot) => a.lot_name.localeCompare(b.lot_name))
 
-      const { data: spotData } = await supabase
-        .from('parking_spots').select('*').eq('lot_id', lotId)
-        .order('row_num').order('col_num')
-      setSpots(spotData ?? [])
-    } else {
-      // No lot assigned — load all lots and let guard pick
-      const { data: spotData } = await supabase
-        .from('parking_spots').select('*')
-        .order('lot_id').order('row_num').order('col_num')
-      setSpots(spotData ?? [])
+      setAssignedLots(lots)
+      if (lots.length > 0) setActiveLot(lots[0])
+      else setLoading(false)
     }
+    loadLots()
+  }, [user])
 
+  // Load spots when activeLot changes
+  useEffect(() => {
+    if (!activeLot) return
+    loadSpots()
+  }, [activeLot])
+
+  const loadSpots = async (showRefresh = false) => {
+    if (!activeLot) return
+    if (showRefresh) setRefreshing(true)
+    else setLoadingSpots(true)
+
+    const { data } = await supabase
+      .from('parking_spots').select('*')
+      .eq('lot_id', activeLot.id)
+      .order('row_num').order('col_num')
+
+    setSpots(data ?? [])
     setLoading(false)
+    setLoadingSpots(false)
     if (showRefresh) setRefreshing(false)
   }
 
-  useEffect(() => { loadData() }, [user])
-
-  // Toggle spot between Available and Occupied with one tap
+  // One-tap toggle Available ↔ Occupied
   const toggleSpot = async (spot: Spot) => {
-    if (spot.status === 'Reserved') return // Guards can't override reservations
+    if (spot.status === 'Reserved') return
     setToggling(spot.id)
     const newStatus = spot.status === 'Available' ? 'Occupied' : 'Available'
+
     await supabase.from('parking_spots')
       .update({ status: newStatus, reserved_label: '' })
       .eq('id', spot.id)
 
-    // Log to history if marking occupied
     if (newStatus === 'Occupied' && user) {
       await supabase.from('reservation_history').insert({
         spot_id: spot.id,
@@ -127,225 +137,188 @@ export default function GuardView({ layout }: Props) {
   }), [spots])
 
   const pct = stats.total ? Math.round(stats.occ / stats.total * 100) : 0
-
   const isMobile = layout === 'mobile'
-  const spotSize = isMobile ? 68 : 80
-  const fontSize = isMobile ? 13 : 15
+  const spotSize = isMobile ? 72 : 86
 
   if (!user || user.role !== 'Guard') return null
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--maroon-dark)',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
+    <div style={{ minHeight: '100vh', background: '#1a0a0a', display: 'flex', flexDirection: 'column' }}>
+
       {/* Header */}
-      <div style={{
-        background: 'var(--maroon-dark)',
-        padding: isMobile ? '14px 16px' : '16px 28px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-      }}>
+      <div style={{ background: 'var(--maroon-dark)', padding: isMobile ? '12px 16px' : '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Car size={18} color="white" />
           </div>
           <div>
-            <div style={{ color: 'white', fontWeight: 700, fontSize: isMobile ? 15 : 17 }}>
-              {lot ? lot.lot_name : 'Parking Guard'}
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 1 }}>
-              {user.full_name}
-            </div>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: isMobile ? 14 : 16 }}>Parking Guard</div>
+            <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11.5 }}>{user.full_name}</div>
           </div>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
-            <Clock size={13} />
-            {time}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Clock size={12} />{time}
           </div>
-          <button
-            onClick={() => loadData(true)}
-            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontFamily: 'inherit' }}
-          >
+          <button onClick={() => loadSpots(true)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}>
             <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             {!isMobile && 'Refresh'}
           </button>
-          <button
-            onClick={() => { logout(); router.push('/') }}
-            style={{ background: 'rgba(255,80,80,0.15)', border: '1px solid rgba(255,80,80,0.3)', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', color: '#ff9090', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontFamily: 'inherit' }}
-          >
+          <button onClick={() => { logout(); router.push('/') }} style={{ background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.25)', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', color: '#ff9090', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'inherit' }}>
             <LogOut size={13} />
             {!isMobile && 'Sign Out'}
           </button>
         </div>
       </div>
 
+      {/* Lot switcher */}
+      {assignedLots.length > 0 && (
+        <div style={{ background: 'rgba(0,0,0,0.35)', borderBottom: '1px solid rgba(255,255,255,0.06)', padding: isMobile ? '10px 16px' : '10px 28px' }}>
+          {assignedLots.length === 1 ? (
+            // Single lot — just show the name
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Car size={14} color="rgba(255,255,255,0.5)" />
+              <span style={{ color: 'white', fontWeight: 600, fontSize: 14 }}>{activeLot?.lot_name}</span>
+              {activeLot?.hours && <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>· {activeLot.hours}</span>}
+            </div>
+          ) : (
+            // Multiple lots — show tab switcher
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {assignedLots.map(lot => {
+                const active = activeLot?.id === lot.id
+                return (
+                  <button key={lot.id} onClick={() => { setActiveLot(lot); setShowLotPicker(false) }} style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    padding: '7px 14px', borderRadius: 99, border: 'none',
+                    background: active ? 'white' : 'rgba(255,255,255,0.08)',
+                    color: active ? 'var(--maroon-dark)' : 'rgba(255,255,255,0.6)',
+                    fontSize: 13, fontWeight: active ? 700 : 500,
+                    cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
+                    transition: 'all 0.15s',
+                  }}>
+                    <Car size={13} />
+                    {lot.lot_name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Stats bar */}
-      <div style={{
-        display: 'flex',
-        background: 'rgba(0,0,0,0.2)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-      }}>
+      <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         {[
-          { label: 'Available', val: stats.avail, color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
-          { label: 'Occupied',  val: stats.occ,   color: '#f87171', bg: 'rgba(248,113,113,0.1)' },
-          { label: 'Reserved',  val: stats.res,   color: '#fbbf24', bg: 'rgba(251,191,36,0.1)' },
-          { label: 'Total',     val: stats.total, color: 'rgba(255,255,255,0.7)', bg: 'transparent' },
+          { label: 'Available', val: stats.avail, color: '#4ade80', bg: 'rgba(74,222,128,0.08)' },
+          { label: 'Occupied',  val: stats.occ,   color: '#f87171', bg: 'rgba(248,113,113,0.08)' },
+          { label: 'Reserved',  val: stats.res,   color: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
+          { label: 'Total',     val: stats.total, color: 'rgba(255,255,255,0.6)', bg: 'transparent' },
         ].map((s, i) => (
-          <div key={s.label} style={{
-            flex: 1, padding: isMobile ? '10px 8px' : '12px 16px', textAlign: 'center',
-            borderRight: i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none',
-            background: s.bg,
-          }}>
+          <div key={s.label} style={{ flex: 1, padding: isMobile ? '10px 6px' : '12px 16px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.06)' : 'none', background: s.bg }}>
             <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.val}</div>
-            <div style={{ fontSize: isMobile ? 10 : 12, color: 'rgba(255,255,255,0.45)', marginTop: 3, fontWeight: 600 }}>{s.label}</div>
+            <div style={{ fontSize: isMobile ? 9.5 : 11.5, color: 'rgba(255,255,255,0.35)', marginTop: 3, fontWeight: 600, letterSpacing: '0.04em' }}>{s.label.toUpperCase()}</div>
           </div>
         ))}
-        {/* Occupancy bar */}
-        <div style={{ flex: 1.5, padding: isMobile ? '10px 12px' : '12px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ flex: 1.5, padding: isMobile ? '10px 10px' : '12px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>OCCUPANCY</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 700, letterSpacing: '0.06em' }}>OCCUPANCY</span>
             <span style={{ fontSize: 13, color: 'white', fontWeight: 700 }}>{pct}%</span>
           </div>
-          <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 99, transition: 'width 0.5s',
-              width: `${pct}%`,
-              background: pct > 80 ? '#f87171' : pct > 50 ? '#fbbf24' : '#4ade80',
-            }} />
+          <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 99, width: `${pct}%`, transition: 'width 0.5s', background: pct > 80 ? '#f87171' : pct > 50 ? '#fbbf24' : '#4ade80' }} />
           </div>
         </div>
       </div>
 
-      {/* Instructions banner */}
-      <div style={{
-        background: 'rgba(255,255,255,0.05)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        padding: isMobile ? '8px 16px' : '10px 28px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-      }}>
-        <div style={{ display: 'flex', gap: 16, flex: 1, flexWrap: 'wrap' }}>
-          {[
-            { color: '#4ade80', label: 'Available — tap to mark Occupied' },
-            { color: '#f87171', label: 'Occupied — tap to mark Available' },
-            { color: '#fbbf24', label: 'Reserved — cannot be changed here' },
-          ].map(({ color, label }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'rgba(255,255,255,0.55)', fontSize: isMobile ? 11 : 12.5 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
-              {label}
-            </div>
-          ))}
-        </div>
+      {/* Legend */}
+      <div style={{ background: 'rgba(0,0,0,0.15)', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: isMobile ? '7px 14px' : '8px 28px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {[
+          { color: '#4ade80', label: 'Available — tap to mark Occupied' },
+          { color: '#f87171', label: 'Occupied — tap to mark Available' },
+          { color: '#fbbf24', label: 'Reserved — cannot be changed' },
+        ].map(({ color, label }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 11 : 12 }}>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />
+            {label}
+          </div>
+        ))}
       </div>
 
       {/* Spot grid */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px' : '24px 28px' }}>
-        {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, gap: 16 }}>
-            <Car size={36} color="rgba(255,255,255,0.2)" />
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>Loading parking data…</div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 14px 80px' : '24px 28px' }}>
+        {loading || loadingSpots ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 220, gap: 14 }}>
+            <RefreshCw size={28} color="rgba(255,255,255,0.15)" style={{ animation: 'spin 1.2s linear infinite' }} />
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Loading spots…</div>
+          </div>
+        ) : assignedLots.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 280, gap: 12, textAlign: 'center' }}>
+            <Car size={40} color="rgba(255,255,255,0.1)" />
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: 600 }}>No lots assigned</div>
+            <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13 }}>Ask an admin to assign you to a parking lot.</div>
           </div>
         ) : spots.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, gap: 12 }}>
-            <Car size={36} color="rgba(255,255,255,0.2)" />
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>No parking lot assigned.</div>
-            <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Ask an admin to assign you to a lot.</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 220, gap: 12 }}>
+            <Car size={36} color="rgba(255,255,255,0.1)" />
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>No spots in this lot</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 14 }}>
             {rows.map(({ row, spots: rowSpots }, ri) => (
               <div key={row}>
                 {ri === Math.floor(rows.length / 2) && (
-                  <div style={{
-                    textAlign: 'center',
-                    color: 'rgba(255,255,255,0.25)',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: '0.12em',
-                    padding: '6px 0',
-                    margin: '4px 0',
-                    borderTop: '1px dashed rgba(255,255,255,0.1)',
-                    borderBottom: '1px dashed rgba(255,255,255,0.1)',
-                  }}>
+                  <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', padding: '6px 0', margin: '4px 0', borderTop: '1px dashed rgba(255,255,255,0.08)', borderBottom: '1px dashed rgba(255,255,255,0.08)' }}>
                     ── DRIVE AISLE ──
                   </div>
                 )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12 }}>
                   {/* Row label */}
-                  <div style={{
-                    width: isMobile ? 22 : 28,
-                    height: spotSize,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'rgba(255,255,255,0.3)',
-                    fontSize: isMobile ? 13 : 16,
-                    fontWeight: 800,
-                    flexShrink: 0,
-                  }}>
+                  <div style={{ width: isMobile ? 20 : 26, height: spotSize, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', fontSize: isMobile ? 14 : 18, fontWeight: 800, flexShrink: 0 }}>
                     {String.fromCharCode(65 + row)}
                   </div>
-
                   {/* Spots */}
-                  <div style={{ display: 'flex', gap: isMobile ? 6 : 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: isMobile ? 8 : 12, flexWrap: 'wrap' }}>
                     {rowSpots.map(spot => {
-                      const isAvail    = spot.status === 'Available'
-                      const isOcc      = spot.status === 'Occupied'
-                      const isRes      = spot.status === 'Reserved'
-                      const isToggling = toggling === spot.id
+                      const isAvail = spot.status === 'Available'
+                      const isOcc   = spot.status === 'Occupied'
+                      const isRes   = spot.status === 'Reserved'
+                      const isSpin  = toggling === spot.id
 
-                      const bg     = isAvail ? 'rgba(74,222,128,0.15)'  : isOcc ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)'
-                      const border = isAvail ? '2px solid rgba(74,222,128,0.5)' : isOcc ? '2px solid rgba(248,113,113,0.5)' : '2px solid rgba(251,191,36,0.4)'
-                      const color  = isAvail ? '#4ade80' : isOcc ? '#f87171' : '#fbbf24'
+                      const borderColor = isAvail ? 'rgba(74,222,128,0.4)' : isOcc ? 'rgba(248,113,113,0.4)' : 'rgba(251,191,36,0.3)'
+                      const bgColor     = isAvail ? 'rgba(74,222,128,0.1)'  : isOcc ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.07)'
+                      const iconColor   = isAvail ? '#4ade80' : isOcc ? '#f87171' : '#fbbf24'
 
                       return (
-                        <button
-                          key={spot.id}
-                          onClick={() => !isRes && toggleSpot(spot)}
-                          disabled={isRes || isToggling}
-                          style={{
-                            width: spotSize,
-                            height: spotSize,
-                            borderRadius: 12,
-                            border,
-                            background: bg,
-                            cursor: isRes ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 4,
-                            transition: 'all 0.15s',
-                            opacity: isToggling ? 0.5 : 1,
-                            transform: isToggling ? 'scale(0.95)' : 'scale(1)',
-                          }}
+                        <button key={spot.id} onClick={() => !isRes && toggleSpot(spot)} disabled={isRes || isSpin} style={{
+                          width: spotSize, height: spotSize, borderRadius: 14,
+                          border: `2px solid ${borderColor}`,
+                          background: bgColor,
+                          cursor: isRes ? 'not-allowed' : 'pointer',
+                          display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center', gap: 5,
+                          transition: 'all 0.12s',
+                          opacity: isSpin ? 0.5 : 1,
+                          transform: isSpin ? 'scale(0.93)' : 'scale(1)',
+                          flexShrink: 0,
+                        }}
                           title={isRes ? `Reserved: ${spot.reserved_label}` : `Tap to mark ${isAvail ? 'Occupied' : 'Available'}`}
+                          onMouseEnter={e => { if (!isRes && !isSpin) (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
+                          onMouseLeave={e => { if (!isRes && !isSpin) (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
                         >
-                          {isToggling ? (
-                            <RefreshCw size={isMobile ? 16 : 20} color={color} style={{ animation: 'spin 0.6s linear infinite' }} />
-                          ) : isAvail ? (
-                            <CheckCircle size={isMobile ? 18 : 22} color="#4ade80" />
-                          ) : isOcc ? (
-                            <XCircle size={isMobile ? 18 : 22} color="#f87171" />
-                          ) : (
-                            <Car size={isMobile ? 16 : 20} color="#fbbf24" />
-                          )}
-                          <span style={{ fontSize, fontWeight: 800, color, lineHeight: 1 }}>
+                          {isSpin
+                            ? <RefreshCw size={isMobile ? 18 : 22} color={iconColor} style={{ animation: 'spin 0.6s linear infinite' }} />
+                            : isAvail
+                              ? <CheckCircle size={isMobile ? 20 : 26} color="#4ade80" />
+                              : isOcc
+                                ? <XCircle size={isMobile ? 20 : 26} color="#f87171" />
+                                : <Car size={isMobile ? 18 : 22} color="#fbbf24" />
+                          }
+                          <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 800, color: iconColor, lineHeight: 1 }}>
                             {spot.spot_code}
                           </span>
-                          {!isMobile && (
-                            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600, lineHeight: 1 }}>
-                              {isRes ? 'RESERVED' : isAvail ? 'FREE' : 'IN USE'}
-                            </span>
-                          )}
+                          <span style={{ fontSize: isMobile ? 9 : 10, color: 'rgba(255,255,255,0.25)', fontWeight: 700, letterSpacing: '0.05em', lineHeight: 1 }}>
+                            {isRes ? 'RESV' : isAvail ? 'FREE' : 'IN USE'}
+                          </span>
                         </button>
                       )
                     })}
@@ -357,10 +330,7 @@ export default function GuardView({ layout }: Props) {
         )}
       </div>
 
-      {/* Spin keyframe */}
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

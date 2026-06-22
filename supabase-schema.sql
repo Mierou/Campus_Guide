@@ -226,3 +226,25 @@ alter table public.users
 -- Example: create a guard account assigned to lot 1
 -- insert into public.users (username, password, full_name, role, assigned_lot_id)
 -- values ('guard1', 'guard123', 'Guard - Backgate', 'Guard', 1);
+
+-- =============================================
+-- GUARD MULTI-LOT ACCESS (replaces assigned_lot_id)
+-- =============================================
+
+-- Junction table: which guards can access which lots
+create table if not exists public.guard_lot_assignments (
+  id         serial primary key,
+  guard_id   integer not null references public.users(id) on delete cascade,
+  lot_id     integer not null references public.parking_lots(id) on delete cascade,
+  unique(guard_id, lot_id)
+);
+
+alter table public.guard_lot_assignments disable row level security;
+grant select, insert, update, delete on public.guard_lot_assignments to anon;
+grant usage, select on sequence public.guard_lot_assignments_id_seq to anon;
+
+-- Migrate any existing assigned_lot_id values into the new table
+insert into public.guard_lot_assignments (guard_id, lot_id)
+  select id, assigned_lot_id from public.users
+  where role = 'Guard' and assigned_lot_id is not null
+on conflict do nothing;
